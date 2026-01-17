@@ -113,8 +113,12 @@
     <!-- Manual Pin Add -->
     <div class="card">
       <h3>Manual Pin Add</h3>
+      <p class="info-text" style="margin-bottom: 1rem; color: #666;">
+        ⏱️ Note: Pinning can take up to 5 minutes if the content needs to be fetched from the IPFS network. 
+        If the CID doesn't exist or is unreachable, the operation will timeout.
+      </p>
       <form id="addPinForm" class="form-inline">
-        <input type="text" id="cidInput" placeholder="Enter CID..." required>
+        <input type="text" id="cidInput" placeholder="Enter CID (e.g., QmXxx...)" required style="flex: 1; min-width: 400px;">
         <button type="submit" class="btn btn-primary">Add Pin</button>
       </form>
     </div>
@@ -159,20 +163,33 @@
         });
         
         const data = await response.json();
-        if (data.success) {
-          showNotification('Pin removed successfully', 'success');
-          setTimeout(() => location.reload(), 1000);
+        
+        if (response.ok && data.success) {
+          showNotification('✓ Pin removed successfully!', 'success');
+          setTimeout(() => location.reload(), 1500);
         } else {
-          showNotification('Failed to remove pin: ' + data.message, 'error');
+          const errorMsg = data.message || data.error || 'Unknown error occurred';
+          showNotification('✗ Failed to remove pin: ' + errorMsg, 'error');
         }
       } catch (error) {
-        showNotification('Error: ' + error.message, 'error');
+        showNotification('✗ Network error: ' + error.message, 'error');
       }
     }
 
     document.getElementById('addPinForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const cid = document.getElementById('cidInput').value;
+      const cid = document.getElementById('cidInput').value.trim();
+      
+      if (!cid) {
+        showNotification('Please enter a CID', 'error');
+        return;
+      }
+      
+      // Disable form while processing
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      const originalText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Adding pin...';
       
       try {
         const response = await fetch('/api/pins/add', {
@@ -182,15 +199,22 @@
         });
         
         const data = await response.json();
-        if (data.success) {
-          showNotification('Pin added successfully', 'success');
+        
+        if (response.ok && data.success) {
+          showNotification('✓ Pin added successfully!', 'success');
           document.getElementById('cidInput').value = '';
-          setTimeout(() => location.reload(), 1000);
+          setTimeout(() => location.reload(), 1500);
         } else {
-          showNotification('Failed to add pin: ' + data.message, 'error');
+          // Show the actual error message from the API
+          const errorMsg = data.message || data.error || 'Unknown error occurred';
+          showNotification('✗ Failed to add pin: ' + errorMsg, 'error');
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
         }
       } catch (error) {
-        showNotification('Error: ' + error.message, 'error');
+        showNotification('✗ Network error: ' + error.message, 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
       }
     });
   </script>

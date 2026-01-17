@@ -110,8 +110,11 @@ class IPFSClient {
 
   /**
    * Pin a CID recursively
+   * @param {string} cid - The CID to pin
+   * @param {boolean} recursive - Whether to pin recursively
+   * @param {number} timeout - Optional custom timeout in ms (default: 300000 = 5 minutes)
    */
-  async pinAdd(cid, recursive = true) {
+  async pinAdd(cid, recursive = true, timeout = 300000) {
     try {
       const response = await axios.post(
         `${this.apiUrl}/api/v0/pin/add`,
@@ -121,11 +124,14 @@ class IPFSClient {
             arg: cid,
             recursive: recursive
           },
-          timeout: this.timeout * 2 // Allow more time for pinning
+          timeout: timeout
         }
       );
       return response.data;
     } catch (error) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error(`Timeout: CID ${cid} could not be fetched from the network within ${timeout/1000} seconds. The content may not exist or is unreachable.`);
+      }
       throw new Error(`IPFS pin add failed for ${cid}: ${error.message}`);
     }
   }
