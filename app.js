@@ -97,13 +97,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// trust proxy
+app.set('trust proxy',1);
+
 // Session configuration
 app.use(session({
   secret: process.env.SESSION_SECRET || 'hotnode-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: false,
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }

@@ -33,7 +33,7 @@
     "express-session": "^1.18.0",
     "mongodb": "^6.3.0",
     "node-cron": "^3.0.3",
-    "sqlite3": "^5.1.7",
+    "sqlite3": "^5.0.2",
     "tail": "^2.2.6",
     "winston": "^3.11.0"
   },
