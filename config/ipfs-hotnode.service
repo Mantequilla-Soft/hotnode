@@ -1,0 +1,38 @@
+[Unit]
+Description=IPFS Hot Node Service
+Documentation=https://github.com/3speak/ipfs-hotnode
+After=network.target ipfs.service nginx.service
+Requires=ipfs.service nginx.service
+
+[Service]
+Type=simple
+User=ipfs
+Group=ipfs
+WorkingDirectory=/opt/ipfs-hotnode
+ExecStart=/usr/bin/node app.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ipfs-hotnode
+
+# Environment
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=2048
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/ipfs-hotnode/database /opt/ipfs-hotnode/logs
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

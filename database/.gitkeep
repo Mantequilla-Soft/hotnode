@@ -1,0 +1,10 @@
+# Database Directory
+
+This directory stores the SQLite database file (`hotnode.db`).
+
+The database is automatically created when you run:
+```bash
+npm run init-db
+```
+
+The database file is excluded from git via `.gitignore` to prevent committing local data.

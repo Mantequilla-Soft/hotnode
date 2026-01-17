@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %>Hot Node Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <h1>🔥 <%= config.hotnode.name %></h1>
+      </div>
+      <ul class="nav-links">
+        <li><a href="/" class="<%= typeof page !== 'undefined' && page === 'dashboard' ? 'active' : '' %>">Dashboard</a></li>
+        <li><a href="/pins" class="<%= typeof page !== 'undefined' && page === 'pins' ? 'active' : '' %>">Pins</a></li>
+        <li><a href="/stats" class="<%= typeof page !== 'undefined' && page === 'stats' ? 'active' : '' %>">Stats</a></li>
+        <li><a href="/settings" class="<%= typeof page !== 'undefined' && page === 'settings' ? 'active' : '' %>">Settings</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <%- body %>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 IPFS Hot Node Service | Version 1.0.0</p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>

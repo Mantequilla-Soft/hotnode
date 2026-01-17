@@ -1,0 +1,60 @@
+{
+  "hotnode": {
+    "name": "HotNode-01",
+    "port": 3101,
+    "ipfs_api": "http://127.0.0.1:5001",
+    "ipfs_gateway": "http://127.0.0.1:8080"
+  },
+  "supernode": {
+    "api": "http://127.0.0.1:5001",
+    "verify_endpoint": "/api/v0/pin/ls",
+    "timeout_ms": 30000
+  },
+  "mongodb": {
+    "uri": "mongodb://username:password@host:27017/database",
+    "database": "threespeak",
+    "collection_legacy": "videos",
+    "collection_new": "embed-video",
+    "timeout_ms": 5000
+  },
+  "nginx": {
+    "log_path": "/var/log/nginx/ipfs-access.log"
+  },
+  "migration": {
+    "start_after_days": 4,
+    "delete_after_days": 7,
+    "batch_size": 10,
+    "check_interval_hours": 12,
+    "throttle_delay_ms": 2000,
+    "max_retries": 10
+  },
+  "cleanup": {
+    "invalid_retention_days": 2,
+    "gc_schedule": "0 2 * * *",
+    "gc_timeout_minutes": 60
+  },
+  "stats": {
+    "retention_days": 90,
+    "aggregation_interval_minutes": 60
+  },
+  "discord": {
+    "webhook_url": "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN",
+    "notify_events": [
+      "health_change",
+      "gc_complete",
+      "migration_errors",
+      "disk_warning",
+      "overdue_pins"
+    ]
+  },
+  "health": {
+    "disk_warning_percent": 80,
+    "disk_critical_percent": 90
+  },
+  "logging": {
+    "level": "info",
+    "file": "logs/hotnode.log",
+    "max_size": "10m",
+    "max_files": 5
+  }
+}

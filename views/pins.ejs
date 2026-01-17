@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pin Management - Hot Node</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <h1>🔥 <%= config.hotnode.name %></h1>
+      </div>
+      <ul class="nav-links">
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/pins" class="active">Pins</a></li>
+        <li><a href="/stats">Stats</a></li>
+        <li><a href="/settings">Settings</a></li>
+        <li class="auth-section">
+          <button id="loginBtn" class="btn btn-sm btn-secondary" style="display: <%= isAuthenticated ? 'none' : 'inline-block' %>;">
+            🔒 Login
+          </button>
+          <button id="logoutBtn" class="btn btn-sm btn-secondary" style="display: <%= isAuthenticated ? 'inline-block' : 'none' %>;">
+            🔓 Logout
+          </button>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <h2>Pin Management</h2>
+
+    <!-- Filters -->
+    <div class="card">
+      <form method="GET" action="/pins" class="filter-form">
+        <div class="form-group">
+          <label>Status:</label>
+          <select name="status">
+            <option value="">All</option>
+            <option value="pending" <%= filters.status === 'pending' ? 'selected' : '' %>>Pending</option>
+            <option value="valid" <%= filters.status === 'valid' ? 'selected' : '' %>>Valid</option>
+            <option value="invalid" <%= filters.status === 'invalid' ? 'selected' : '' %>>Invalid</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Search CID:</label>
+          <input type="text" name="search" value="<%= filters.search || '' %>" placeholder="Enter CID...">
+        </div>
+        <button type="submit" class="btn btn-primary">Filter</button>
+        <a href="/pins" class="btn btn-secondary">Clear</a>
+      </form>
+    </div>
+
+    <!-- Pins Table -->
+    <div class="card">
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>CID</th>
+              <th>Status</th>
+              <th>Size</th>
+              <th>Added</th>
+              <th>Migrated</th>
+              <th>Retries</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (pins && pins.length > 0) { %>
+              <% pins.forEach(pin => { %>
+                <tr>
+                  <td><code class="cid" title="<%= pin.cid %>"><%= pin.cid.substring(0, 20) %>...</code></td>
+                  <td><span class="badge badge-<%= pin.status %>"><%= pin.status %></span></td>
+                  <td><%= pin.size_bytes ? (pin.size_bytes / (1024 * 1024)).toFixed(2) + ' MB' : 'N/A' %></td>
+                  <td><%= new Date(pin.added_at).toLocaleString() %></td>
+                  <td><%= pin.migrated ? '✓ ' + new Date(pin.migrated_at).toLocaleDateString() : '○' %></td>
+                  <td><%= pin.retry_count || 0 %></td>
+                  <td>
+                    <% if (!pin.unpinned) { %>
+                      <button class="btn btn-sm btn-danger" onclick="unpinCID('<%= pin.cid %>')">Unpin</button>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="7" class="text-center">No pins found</td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <% if (pagination.totalPages > 1) { %>
+        <div class="pagination">
+          <% if (pagination.page > 1) { %>
+            <a href="?page=<%= pagination.page - 1 %>&status=<%= filters.status || '' %>&search=<%= filters.search || '' %>" class="btn btn-sm">Previous</a>
+          <% } %>
+          
+          <span>Page <%= pagination.page %> of <%= pagination.totalPages %> (<%= pagination.totalPins %> total)</span>
+          
+          <% if (pagination.page < pagination.totalPages) { %>
+            <a href="?page=<%= pagination.page + 1 %>&status=<%= filters.status || '' %>&search=<%= filters.search || '' %>" class="btn btn-sm">Next</a>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+
+    <!-- Manual Pin Add -->
+    <div class="card">
+      <h3>Manual Pin Add</h3>
+      <form id="addPinForm" class="form-inline">
+        <input type="text" id="cidInput" placeholder="Enter CID..." required>
+        <button type="submit" class="btn btn-primary">Add Pin</button>
+      </form>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 IPFS Hot Node Service v1.0.0</p>
+    </div>
+  </footer>
+
+  <!-- Login Modal -->
+  <div id="loginModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <h3>Admin Login</h3>
+      <form id="loginForm">
+        <input 
+          type="password" 
+          id="loginPassword" 
+          placeholder="Enter admin password" 
+          required 
+          autocomplete="current-password"
+        >
+        <div class="modal-buttons">
+          <button type="submit" class="btn btn-primary">Login</button>
+          <button type="button" class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    async function unpinCID(cid) {
+      if (!confirm(`Are you sure you want to unpin ${cid}?`)) return;
+      
+      try {
+        const response = await fetch('/api/pins/remove', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cid })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showNotification('Pin removed successfully', 'success');
+          setTimeout(() => location.reload(), 1000);
+        } else {
+          showNotification('Failed to remove pin: ' + data.message, 'error');
+        }
+      } catch (error) {
+        showNotification('Error: ' + error.message, 'error');
+      }
+    }
+
+    document.getElementById('addPinForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const cid = document.getElementById('cidInput').value;
+      
+      try {
+        const response = await fetch('/api/pins/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cid })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showNotification('Pin added successfully', 'success');
+          document.getElementById('cidInput').value = '';
+          setTimeout(() => location.reload(), 1000);
+        } else {
+          showNotification('Failed to add pin: ' + data.message, 'error');
+        }
+      } catch (error) {
+        showNotification('Error: ' + error.message, 'error');
+      }
+    });
+  </script>
+</body>
+</html>

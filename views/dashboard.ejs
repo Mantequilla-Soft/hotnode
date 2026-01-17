@@ -1,0 +1,238 @@
+<% 
+  const page = 'dashboard';
+  const title = 'Dashboard';
+%>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Hot Node</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <h1>🔥 <%= config.hotnode.name %></h1>
+      </div>
+      <ul class="nav-links">
+        <li><a href="/" class="active">Dashboard</a></li>
+        <li><a href="/pins">Pins</a></li>
+        <li><a href="/stats">Stats</a></li>
+        <li><a href="/settings">Settings</a></li>
+        <li class="auth-section">
+          <button id="loginBtn" class="btn btn-sm btn-secondary" style="display: <%= isAuthenticated ? 'none' : 'inline-block' %>;">
+            🔒 Login
+          </button>
+          <button id="logoutBtn" class="btn btn-sm btn-secondary" style="display: <%= isAuthenticated ? 'inline-block' : 'none' %>;">
+            🔓 Logout
+          </button>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="header-section">
+      <h2>Dashboard</h2>
+      <div class="status-toggle">
+        <label class="switch">
+          <input type="checkbox" id="enabledToggle" <%= enabled ? 'checked' : '' %>>
+          <span class="slider"></span>
+        </label>
+        <span id="statusText" class="status-label <%= enabled ? 'enabled' : 'disabled' %>">
+          <%= enabled ? 'ENABLED' : 'DISABLED' %>
+        </span>
+      </div>
+    </div>
+
+    <!-- System Stats Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">📌</div>
+        <div class="stat-content">
+          <h3>Total Pins</h3>
+          <div class="stat-value"><%= pinStats.total || 0 %></div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-content">
+          <h3>Pending Migration</h3>
+          <div class="stat-value"><%= pinStats.pending_migration || 0 %></div>
+        </div>
+      </div>
+
+      <div class="stat-card <%= (pinStats.overdue || 0) > 0 ? 'warning' : '' %>">
+        <div class="stat-icon">⚠️</div>
+        <div class="stat-content">
+          <h3>Overdue</h3>
+          <div class="stat-value"><%= pinStats.overdue || 0 %></div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-content">
+          <h3>Migrated</h3>
+          <div class="stat-value"><%= pinStats.migrated || 0 %></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Repo Stats -->
+    <% if (repoStats) { %>
+    <div class="card">
+      <h3>Repository Status</h3>
+      <div class="repo-stats">
+        <div class="stat-row">
+          <span>Disk Usage:</span>
+          <span><strong><%= repoStats.usage_percent %>%</strong></span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: <%= repoStats.usage_percent %>%" 
+               class="<%= repoStats.usage_percent > 80 ? 'warning' : '' %>"></div>
+        </div>
+        <div class="stat-row">
+          <span>Size:</span>
+          <span><%= (repoStats.size / (1024 * 1024 * 1024)).toFixed(2) %> GB / <%= (repoStats.max / (1024 * 1024 * 1024)).toFixed(2) %> GB</span>
+        </div>
+        <div class="stat-row">
+          <span>Objects:</span>
+          <span><%= repoStats.num_objects.toLocaleString() %></span>
+        </div>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Recent Pins -->
+    <div class="card">
+      <h3>Recent Uploads</h3>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>CID</th>
+              <th>Status</th>
+              <th>Size</th>
+              <th>Added</th>
+              <th>Migrated</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (recentPins && recentPins.length > 0) { %>
+              <% recentPins.forEach(pin => { %>
+                <tr>
+                  <td><code class="cid"><%= pin.cid.substring(0, 16) %>...</code></td>
+                  <td><span class="badge badge-<%= pin.status %>"><%= pin.status %></span></td>
+                  <td><%= pin.size_bytes ? (pin.size_bytes / (1024 * 1024)).toFixed(2) + ' MB' : 'N/A' %></td>
+                  <td><%= new Date(pin.added_at).toLocaleString() %></td>
+                  <td><%= pin.migrated ? '✓' : '○' %></td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="5" class="text-center">No recent uploads</td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer">
+        <a href="/pins" class="btn btn-secondary">View All Pins</a>
+      </div>
+    </div>
+
+    <!-- Recent Events -->
+    <div class="card">
+      <h3>Recent Events</h3>
+      <div class="events-list">
+        <% if (recentEvents && recentEvents.length > 0) { %>
+          <% recentEvents.forEach(event => { %>
+            <div class="event-item severity-<%= event.severity %>">
+              <div class="event-time"><%= new Date(event.timestamp).toLocaleString() %></div>
+              <div class="event-type"><strong><%= event.event_type %></strong></div>
+              <div class="event-message"><%= event.message %></div>
+            </div>
+          <% }); %>
+        <% } else { %>
+          <p class="text-muted">No recent events</p>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Worker Status -->
+    <div class="card">
+      <h3>Worker Status</h3>
+      <div class="worker-status">
+        <div class="worker-item">
+          <span>Last GC Run:</span>
+          <span><%= lastRuns.gc ? new Date(lastRuns.gc).toLocaleString() : 'Never' %></span>
+        </div>
+        <div class="worker-item">
+          <span>Last Migration:</span>
+          <span><%= lastRuns.migration ? new Date(lastRuns.migration).toLocaleString() : 'Never' %></span>
+        </div>
+        <div class="worker-item">
+          <span>Last Stats Update:</span>
+          <span><%= lastRuns.stats ? new Date(lastRuns.stats).toLocaleString() : 'Never' %></span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 IPFS Hot Node Service v1.0.0</p>
+    </div>
+  </footer>
+
+  <!-- Login Modal -->
+  <div id="loginModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <h3>Admin Login</h3>
+      <form id="loginForm">
+        <input 
+          type="password" 
+          id="loginPassword" 
+          placeholder="Enter admin password" 
+          required 
+          autocomplete="current-password"
+        >
+        <div class="modal-buttons">
+          <button type="submit" class="btn btn-primary">Login</button>
+          <button type="button" class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    // Toggle enabled/disabled
+    document.getElementById('enabledToggle').addEventListener('change', async (e) => {
+      try {
+        const response = await fetch('/api/config/toggle', { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.success) {
+          const statusText = document.getElementById('statusText');
+          statusText.textContent = data.enabled ? 'ENABLED' : 'DISABLED';
+          statusText.className = 'status-label ' + (data.enabled ? 'enabled' : 'disabled');
+          
+          showNotification(data.enabled ? 'Hot node enabled' : 'Hot node disabled', 'success');
+        } else {
+          e.target.checked = !e.target.checked;
+          showNotification('Failed to toggle status', 'error');
+        }
+      } catch (error) {
+        e.target.checked = !e.target.checked;
+        showNotification('Error: ' + error.message, 'error');
+      }
+    });
+  </script>
+</body>
+</html>

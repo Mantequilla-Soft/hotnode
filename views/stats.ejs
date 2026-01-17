@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statistics - Hot Node</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <h1>🔥 <%= config.hotnode.name %></h1>
+      </div>
+      <ul class="nav-links">
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/pins">Pins</a></li>
+        <li><a href="/stats" class="active">Stats</a></li>
+        <li><a href="/settings">Settings</a></li>
+        <li class="auth-section">
+          <button id="loginBtn" class="btn btn-sm btn-secondary" style="display: <%= isAuthenticated ? 'none' : 'inline-block' %>;">
+            🔒 Login
+          </button>
+          <button id="logoutBtn" class="btn btn-sm btn-secondary" style="display: <%= isAuthenticated ? 'inline-block' : 'none' %>;">
+            🔓 Logout
+          </button>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <h2>Traffic Statistics</h2>
+
+    <!-- Period Selector -->
+    <div class="card">
+      <div class="period-selector">
+        <a href="/stats?period=hourly" class="btn <%= period === 'hourly' ? 'btn-primary' : 'btn-secondary' %>">Hourly</a>
+        <a href="/stats?period=daily" class="btn <%= period === 'daily' ? 'btn-primary' : 'btn-secondary' %>">Daily</a>
+        <a href="/stats?period=weekly" class="btn <%= period === 'weekly' ? 'btn-primary' : 'btn-secondary' %>">Weekly</a>
+        <a href="/stats?period=monthly" class="btn <%= period === 'monthly' ? 'btn-primary' : 'btn-secondary' %>">Monthly</a>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card">
+      <h3>Bandwidth Usage</h3>
+      <canvas id="bandwidthChart"></canvas>
+    </div>
+
+    <!-- Stats Table -->
+    <div class="card">
+      <h3>Detailed Stats</h3>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Bytes In</th>
+              <th>Bytes Out</th>
+              <th>Requests</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (stats && stats.length > 0) { %>
+              <% stats.forEach(stat => { %>
+                <tr>
+                  <td><%= new Date(stat.timestamp).toLocaleString() %></td>
+                  <td><%= (stat.bytes_in / (1024 * 1024)).toFixed(2) %> MB</td>
+                  <td><%= (stat.bytes_out / (1024 * 1024)).toFixed(2) %> MB</td>
+                  <td><%= stat.requests_count || 0 %></td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="4" class="text-center">No statistics available</td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 IPFS Hot Node Service v1.0.0</p>
+    </div>
+  </footer>
+
+  <!-- Login Modal -->
+  <div id="loginModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <h3>Admin Login</h3>
+      <form id="loginForm">
+        <input 
+          type="password" 
+          id="loginPassword" 
+          placeholder="Enter admin password" 
+          required 
+          autocomplete="current-password"
+        >
+        <div class="modal-buttons">
+          <button type="submit" class="btn btn-primary">Login</button>
+          <button type="button" class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/js/main.js"></script>
+  <script>
+    // Prepare chart data
+    const stats = <%= JSON.stringify(stats || []) %>;
+    const labels = stats.map(s => new Date(s.timestamp).toLocaleString());
+    const bytesIn = stats.map(s => s.bytes_in / (1024 * 1024));
+    const bytesOut = stats.map(s => s.bytes_out / (1024 * 1024));
+
+    // Create chart
+    const ctx = document.getElementById('bandwidthChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Bytes In (MB)',
+          data: bytesIn,
+          borderColor: 'rgb(75, 192, 192)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          tension: 0.1
+        }, {
+          label: 'Bytes Out (MB)',
+          data: bytesOut,
+          borderColor: 'rgb(255, 99, 132)',
+          backgroundColor: 'rgba(255, 99, 132, 0.2)',
+          tension: 0.1
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: 'Bandwidth Usage Over Time'
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'MB'
+            }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

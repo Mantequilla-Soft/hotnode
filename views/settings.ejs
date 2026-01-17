@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - Hot Node</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <h1>🔥 <%= config.hotnode.name %></h1>
+      </div>
+      <ul class="nav-links">
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/pins">Pins</a></li>
+        <li><a href="/stats">Stats</a></li>
+        <li><a href="/settings" class="active">Settings</a></li>
+        <li class="auth-section">
+          <button id="loginBtn" class="btn btn-sm btn-secondary" style="display: <%= isAuthenticated ? 'none' : 'inline-block' %>;">
+            🔒 Login
+          </button>
+          <button id="logoutBtn" class="btn btn-sm btn-secondary" style="display: <%= isAuthenticated ? 'inline-block' : 'none' %>;">
+            🔓 Logout
+          </button>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <h2>Settings</h2>
+
+    <!-- Discord Webhook -->
+    <div class="card">
+      <h3>Discord Notifications</h3>
+      <form id="discordForm">
+        <div class="form-group">
+          <label>Webhook URL:</label>
+          <input type="url" id="discordWebhook" value="<%= config.discord_webhook || '' %>" placeholder="https://discord.com/api/webhooks/...">
+        </div>
+        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="button" class="btn btn-secondary" onclick="testDiscord()">Test</button>
+      </form>
+    </div>
+
+    <!-- Manual Actions -->
+    <div class="card">
+      <h3>Manual Actions</h3>
+      <div class="action-buttons">
+        <button class="btn btn-primary" onclick="runMigration()">
+          🔄 Run Migration Now
+        </button>
+        <button class="btn btn-warning" onclick="runGC()">
+          🗑️ Run Garbage Collection
+        </button>
+      </div>
+    </div>
+
+    <!-- GC History -->
+    <div class="card">
+      <h3>Recent Garbage Collections</h3>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Run At</th>
+              <th>Duration</th>
+              <th>Freed</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (gcLogs && gcLogs.length > 0) { %>
+              <% gcLogs.forEach(log => { %>
+                <tr>
+                  <td><%= new Date(log.run_at).toLocaleString() %></td>
+                  <td><%= log.duration_seconds %>s</td>
+                  <td><%= log.freed_bytes ? (log.freed_bytes / (1024 * 1024)).toFixed(2) + ' MB' : 'N/A' %></td>
+                  <td>
+                    <% if (log.error) { %>
+                      <span class="badge badge-error">Failed</span>
+                    <% } else { %>
+                      <span class="badge badge-success">Success</span>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="4" class="text-center">No GC runs yet</td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Configuration Values -->
+    <div class="card">
+      <h3>Configuration</h3>
+      <div class="config-list">
+        <div class="config-item">
+          <strong>Hot Node Name:</strong>
+          <span><%= appConfig.hotnode.name %></span>
+        </div>
+        <div class="config-item">
+          <strong>IPFS API:</strong>
+          <span><%= appConfig.hotnode.ipfs_api %></span>
+        </div>
+        <div class="config-item">
+          <strong>Migration Start:</strong>
+          <span><%= appConfig.migration.start_after_days %> days</span>
+        </div>
+        <div class="config-item">
+          <strong>Delete After:</strong>
+          <span><%= appConfig.migration.delete_after_days %> days</span>
+        </div>
+        <div class="config-item">
+          <strong>Migration Batch Size:</strong>
+          <span><%= appConfig.migration.batch_size %></span>
+        </div>
+      </div>
+      <p class="text-muted">To modify these settings, edit config.json and restart the service.</p>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 IPFS Hot Node Service v1.0.0</p>
+    </div>
+  </footer>
+
+  <!-- Login Modal -->
+  <div id="loginModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <h3>Admin Login</h3>
+      <form id="loginForm">
+        <input 
+          type="password" 
+          id="loginPassword" 
+          placeholder="Enter admin password" 
+          required 
+          autocomplete="current-password"
+        >
+        <div class="modal-buttons">
+          <button type="submit" class="btn btn-primary">Login</button>
+          <button type="button" class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+  <script>
+    document.getElementById('discordForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const webhook = document.getElementById('discordWebhook').value;
+      
+      try {
+        const response = await fetch('/api/config/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'discord_webhook', value: webhook })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showNotification('Discord webhook saved', 'success');
+        } else {
+          showNotification('Failed to save webhook', 'error');
+        }
+      } catch (error) {
+        showNotification('Error: ' + error.message, 'error');
+      }
+    });
+
+    async function testDiscord() {
+      try {
+        const response = await fetch('/api/discord/test', { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.success) {
+          showNotification('Test notification sent to Discord', 'success');
+        } else {
+          showNotification('Failed: ' + data.error, 'error');
+        }
+      } catch (error) {
+        showNotification('Error: ' + error.message, 'error');
+      }
+    }
+
+    async function runMigration() {
+      if (!confirm('Start migration worker now?')) return;
+      
+      try {
+        const response = await fetch('/api/migration/run', { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.success) {
+          showNotification('Migration started', 'success');
+        } else {
+          showNotification('Failed to start migration', 'error');
+        }
+      } catch (error) {
+        showNotification('Error: ' + error.message, 'error');
+      }
+    }
+
+    async function runGC() {
+      if (!confirm('Start garbage collection now? This may take several minutes.')) return;
+      
+      try {
+        const response = await fetch('/api/gc/run', { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.success) {
+          showNotification('Garbage collection started', 'success');
+        } else {
+          showNotification('Failed to start GC', 'error');
+        }
+      } catch (error) {
+        showNotification('Error: ' + error.message, 'error');
+      }
+    }
+  </script>
+</body>
+</html>
