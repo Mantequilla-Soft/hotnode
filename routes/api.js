@@ -9,6 +9,7 @@ const config = require('../utils/config');
 // Import workers for manual execution
 const migrationWorker = require('../workers/migrationWorker');
 const cleanupWorker = require('../workers/cleanupWorker');
+const mongoValidator = require('../workers/mongoValidator');
 
 /**
  * Admin API Endpoints
@@ -523,6 +524,29 @@ router.post('/migration/run', requireAuth, async (req, res) => {
   } catch (error) {
     logger.error('Failed to start migration:', error);
     res.status(500).json({ error: 'Failed to start migration' });
+  }
+});
+
+/**
+ * Trigger MongoDB validation of pending pins
+ */
+router.post('/validators/mongo', requireAuth, async (req, res) => {
+  try {
+    logger.info('Manual MongoDB validation triggered');
+    
+    // Run validator worker asynchronously
+    mongoValidator.run()
+      .then(result => {
+        logger.info('Manual MongoDB validation completed:', result);
+      })
+      .catch(error => {
+        logger.error('Manual MongoDB validation failed:', error);
+      });
+    
+    res.json({ success: true, message: 'MongoDB validation started' });
+  } catch (error) {
+    logger.error('Failed to start MongoDB validation:', error);
+    res.status(500).json({ error: 'Failed to start validation' });
   }
 });
 

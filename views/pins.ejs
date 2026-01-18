@@ -139,6 +139,28 @@
       <button id="scanLogsBtn" class="btn btn-info">Scan IPFS for Pins</button>
       <div id="scanResults" style="margin-top: 1rem; display: none;"></div>
     </div>
+
+    <!-- Admin Actions (only visible when authenticated) -->
+    <div class="card" id="adminActionsCard" style="display: <%= isAuthenticated ? 'block' : 'none' %>;">
+      <h3>🔧 Admin Actions</h3>
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-start;">
+        <div style="flex: 1; min-width: 250px;">
+          <h4 style="margin-bottom: 0.5rem;">Validate Pending Pins</h4>
+          <p class="info-text" style="margin-bottom: 0.5rem; color: #666; font-size: 0.9rem;">
+            Validate pending pins against MongoDB to verify they are legitimate encoder uploads.
+          </p>
+          <button id="validatePinsBtn" class="btn btn-warning">Run MongoDB Validator</button>
+        </div>
+        <div style="flex: 1; min-width: 250px;">
+          <h4 style="margin-bottom: 0.5rem;">Garbage Collection</h4>
+          <p class="info-text" style="margin-bottom: 0.5rem; color: #666; font-size: 0.9rem;">
+            Run IPFS garbage collection to free up disk space by removing unpinned blocks.
+          </p>
+          <button id="runGcBtn" class="btn btn-danger">Run GC</button>
+        </div>
+      </div>
+      <div id="adminActionResults" style="margin-top: 1rem; display: none;"></div>
+    </div>
   </main>
 
   <footer>
@@ -349,6 +371,94 @@
       } finally {
         btn.disabled = false;
         btn.textContent = 'Scan IPFS for Pins';
+      }
+    });
+
+    // MongoDB Validator button handler
+    document.getElementById('validatePinsBtn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('validatePinsBtn');
+      const resultsDiv = document.getElementById('adminActionResults');
+      
+      btn.disabled = true;
+      btn.textContent = 'Validating...';
+      
+      try {
+        const response = await fetch('/api/validators/mongo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          resultsDiv.innerHTML = `
+            <div style="padding: 1rem; background: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 4px;">
+              <strong>✅ MongoDB Validation Started</strong><br>
+              The validator is running in the background. Check logs for progress.
+            </div>
+          `;
+          resultsDiv.style.display = 'block';
+          showNotification('✓ MongoDB validation started!', 'success');
+        } else {
+          throw new Error(data.message || data.error || 'Validation failed');
+        }
+      } catch (error) {
+        resultsDiv.innerHTML = `
+          <div style="padding: 1rem; background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px;">
+            <strong>❌ Error:</strong> ${error.message}
+          </div>
+        `;
+        resultsDiv.style.display = 'block';
+        showNotification('✗ Validation failed: ' + error.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run MongoDB Validator';
+      }
+    });
+
+    // Garbage Collection button handler
+    document.getElementById('runGcBtn')?.addEventListener('click', async () => {
+      if (!confirm('Run garbage collection? This will remove unpinned blocks from IPFS to free disk space.')) {
+        return;
+      }
+      
+      const btn = document.getElementById('runGcBtn');
+      const resultsDiv = document.getElementById('adminActionResults');
+      
+      btn.disabled = true;
+      btn.textContent = 'Running GC...';
+      
+      try {
+        const response = await fetch('/api/gc/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          resultsDiv.innerHTML = `
+            <div style="padding: 1rem; background: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 4px;">
+              <strong>🗑️ Garbage Collection Started</strong><br>
+              GC is running in the background. This may take several minutes. Check logs for progress.
+            </div>
+          `;
+          resultsDiv.style.display = 'block';
+          showNotification('✓ Garbage collection started!', 'success');
+        } else {
+          throw new Error(data.message || data.error || 'GC failed');
+        }
+      } catch (error) {
+        resultsDiv.innerHTML = `
+          <div style="padding: 1rem; background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px;">
+            <strong>❌ Error:</strong> ${error.message}
+          </div>
+        `;
+        resultsDiv.style.display = 'block';
+        showNotification('✗ GC failed: ' + error.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run GC';
       }
     });
   </script>
