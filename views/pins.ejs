@@ -64,6 +64,7 @@
               <th>Size</th>
               <th>Added</th>
               <th>Migrated</th>
+              <th>Supernode</th>
               <th>Retries</th>
               <th>Actions</th>
             </tr>
@@ -71,16 +72,21 @@
           <tbody>
             <% if (pins && pins.length > 0) { %>
               <% pins.forEach(pin => { %>
-                <tr>
+                <tr data-cid="<%= pin.cid %>">
                   <td><code class="cid" title="<%= pin.cid %>"><%= pin.cid.substring(0, 20) %>...</code></td>
                   <td><span class="badge badge-<%= pin.status %>"><%= pin.status %></span></td>
                   <td><%= pin.size_bytes ? (pin.size_bytes / (1024 * 1024)).toFixed(2) + ' MB' : 'N/A' %></td>
                   <td><%= new Date(pin.added_at).toLocaleString() %></td>
                   <td><%= pin.migrated ? '✓ ' + new Date(pin.migrated_at).toLocaleDateString() : '○' %></td>
+                  <td>
+                    <span class="supernode-status" data-cid="<%= pin.cid %>">
+                      <button class="btn btn-sm btn-info" onclick="checkSupernode('<%= pin.cid %>')">Check</button>
+                    </span>
+                  </td>
                   <td><%= pin.retry_count || 0 %></td>
                   <td>
                     <% if (!pin.unpinned) { %>
-                      <button class="btn btn-sm btn-danger" onclick="unpinCID('<%= pin.cid %>')">Unpin</button>
+                      <button class="btn btn-sm btn-danger unpin-btn" data-cid="<%= pin.cid %>" onclick="unpinCID('<%= pin.cid %>')" <%= pin.migrated ? '' : 'disabled' %>>Unpin</button>
                     <% } %>
                   </td>
                 </tr>
@@ -152,6 +158,72 @@
 
   <script src="/js/main.js"></script>
   <script>
+    async function checkSupernode(cid) {
+      const statusCell = document.querySelector(`.supernode-status[data-cid="${cid}"]`);
+      const row = document.querySelector(`tr[data-cid="${cid}"]`);
+      const unpinBtn = row.querySelector('.unpin-btn');
+      
+      // Show loading
+      statusCell.innerHTML = '<span style="color: #666;">Checking...</span>';
+      
+      try {
+        const response = await fetch('/api/pins/check-supernode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cid })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          if (data.exists) {
+            // Pin exists on supernode
+            statusCell.innerHTML = '<span style="color: #22c55e; font-weight: bold;">✓ On Supernode</span>';
+            
+            // Enable unpin button
+            if (unpinBtn) {
+              unpinBtn.disabled = false;
+            }
+            
+            // Ask if they want to mark as migrated
+            if (confirm('This pin exists on the supernode. Mark as migrated?\n\nThis will keep it on your hot node for the retention period (7 days from when it was added), giving temporary boost to delivery.')) {
+              await markAsMigrated(cid);
+            }
+          } else {
+            // Pin doesn't exist on supernode
+            statusCell.innerHTML = '<span style="color: #ef4444;">✗ Not on Supernode</span>';
+            showNotification('Pin not found on supernode', 'info');
+          }
+        } else {
+          throw new Error(data.message || 'Failed to check supernode');
+        }
+      } catch (error) {
+        statusCell.innerHTML = '<button class="btn btn-sm btn-info" onclick="checkSupernode(\'' + cid + '\')">Check</button>';
+        showNotification('✗ Error checking supernode: ' + error.message, 'error');
+      }
+    }
+    
+    async function markAsMigrated(cid) {
+      try {
+        const response = await fetch('/api/pins/mark-migrated', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cid })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          showNotification('✓ Marked as migrated!', 'success');
+          setTimeout(() => location.reload(), 1500);
+        } else {
+          throw new Error(data.message || 'Failed to mark as migrated');
+        }
+      } catch (error) {
+        showNotification('✗ Error: ' + error.message, 'error');
+      }
+    }
+
     async function unpinCID(cid) {
       if (!confirm(`Are you sure you want to unpin ${cid}?`)) return;
       

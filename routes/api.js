@@ -299,6 +299,77 @@ router.post('/pins/remove', requireAuth, async (req, res) => {
 });
 
 /**
+ * Check if pin exists on supernode
+ */
+router.post('/pins/check-supernode', requireAuth, async (req, res) => {
+  try {
+    const { cid } = req.body;
+    
+    if (!cid) {
+      return res.status(400).json({ error: 'CID required' });
+    }
+    
+    const axios = require('axios');
+    const config = require('../config.json');
+    
+    // Check supernode
+    const response = await axios.post(
+      `${config.supernode.api}/api/v0/pin/ls`,
+      null,
+      {
+        params: {
+          arg: cid,
+          type: 'recursive'
+        },
+        timeout: config.supernode.timeout_ms || 30000
+      }
+    );
+    
+    const exists = response.data.Keys && response.data.Keys[cid] !== undefined;
+    
+    logger.info(`Supernode check for ${cid}: ${exists ? 'exists' : 'not found'}`);
+    
+    res.json({ success: true, exists, cid });
+  } catch (error) {
+    // If supernode returns 500, pin doesn't exist
+    if (error.response && error.response.status === 500) {
+      return res.json({ success: true, exists: false, cid: req.body.cid });
+    }
+    logger.error('Failed to check supernode:', error);
+    res.status(500).json({ error: 'Failed to check supernode', message: error.message });
+  }
+});
+
+/**
+ * Mark pin as migrated (when verified on supernode)
+ */
+router.post('/pins/mark-migrated', requireAuth, async (req, res) => {
+  try {
+    const { cid } = req.body;
+    
+    if (!cid) {
+      return res.status(400).json({ error: 'CID required' });
+    }
+    
+    const db = getDatabase();
+    
+    // Update database to mark as migrated
+    await db.updatePin(cid, {
+      migrated: 1,
+      migrated_at: new Date().toISOString(),
+      notes: 'Verified on supernode, marked as migrated'
+    });
+    
+    logger.info(`Marked as migrated: ${cid}`);
+    
+    res.json({ success: true, cid });
+  } catch (error) {
+    logger.error('Failed to mark as migrated:', error);
+    res.status(500).json({ error: 'Failed to mark as migrated', message: error.message });
+  }
+});
+
+/**
  * Trigger migration for specific pin
  */
 router.post('/pins/migrate', requireAuth, async (req, res) => {
