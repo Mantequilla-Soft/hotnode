@@ -56,19 +56,15 @@ class MigrationWorker {
   async verifySupernodePin(cid) {
     try {
       const response = await axios.post(
-        `${this.supernodeAPI}/api/v0/pin/ls`,
+        `${this.supernodeAPI}/api/v0/pin/ls?arg=${cid}`,
         null,
         {
-          params: {
-            arg: cid,
-            type: 'recursive'
-          },
           timeout: config.supernode.timeout_ms || 30000
         }
       );
 
-      // Check if CID exists in response
-      return response.data.Keys && response.data.Keys[cid] !== undefined;
+      // Pin exists if response is successful and doesn't contain "not pinned"
+      return response.status === 200 && !response.data.includes('not pinned');
     } catch (error) {
       logger.error(`Supernode verification failed for ${cid}:`, error.message);
       return false;

@@ -314,27 +314,20 @@ router.post('/pins/check-supernode', requireAuth, async (req, res) => {
     
     // Check supernode
     const response = await axios.post(
-      `${config.supernode.api}/api/v0/pin/ls`,
+      `${config.supernode.api}/api/v0/pin/ls?arg=${cid}`,
       null,
       {
-        params: {
-          arg: cid,
-          type: 'recursive'
-        },
         timeout: config.supernode.timeout_ms || 30000
       }
     );
     
-    const exists = response.data.Keys && response.data.Keys[cid] !== undefined;
+    // Pin exists if response is successful and doesn't contain "not pinned"
+    const exists = response.status === 200 && !response.data.includes('not pinned');
     
     logger.info(`Supernode check for ${cid}: ${exists ? 'exists' : 'not found'}`);
     
     res.json({ success: true, exists, cid });
   } catch (error) {
-    // If supernode returns 500, pin doesn't exist
-    if (error.response && error.response.status === 500) {
-      return res.json({ success: true, exists: false, cid: req.body.cid });
-    }
     logger.error('Failed to check supernode:', error);
     res.status(500).json({ error: 'Failed to check supernode', message: error.message });
   }

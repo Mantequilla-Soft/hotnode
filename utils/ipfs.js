@@ -73,25 +73,22 @@ class IPFSClient {
    */
   async pinLs(cid = null, type = 'recursive') {
     try {
-      const params = { type };
+      let url = `${this.apiUrl}/api/v0/pin/ls`;
       if (cid) {
-        params.arg = cid;
+        url += `?arg=${cid}`;
+      } else {
+        url += `?type=${type}`;
       }
 
       const response = await axios.post(
-        `${this.apiUrl}/api/v0/pin/ls`,
+        url,
         null,
         {
-          params,
           timeout: this.timeout
         }
       );
       return response.data;
     } catch (error) {
-      // If pin doesn't exist, IPFS returns error
-      if (error.response && error.response.status === 500) {
-        return { Keys: {} };
-      }
       throw new Error(`IPFS pin ls failed: ${error.message}`);
     }
   }

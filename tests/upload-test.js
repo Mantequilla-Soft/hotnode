@@ -124,17 +124,17 @@ async function verifyPin(cid) {
     console.log('\n🔍 Verifying pin...');
     
     const response = await axios.post(
-      `${IPFS_API_URL}/api/v0/pin/ls`,
+      `${IPFS_API_URL}/api/v0/pin/ls?arg=${cid}`,
       null,
       {
-        params: {
-          arg: cid,
-          type: 'recursive'
-        }
+        timeout: 10000
       }
     );
 
-    if (response.data.Keys && response.data.Keys[cid]) {
+    // Pin exists if response is successful and doesn't contain "not pinned"
+    const exists = response.status === 200 && !response.data.includes('not pinned');
+    
+    if (exists) {
       console.log('✅ Pin verified on hotnode');
       return true;
     }
