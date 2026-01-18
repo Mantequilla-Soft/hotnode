@@ -131,12 +131,12 @@
 
     <!-- Scan Logs for Pins -->
     <div class="card">
-      <h3>Discover Pins from Logs</h3>
+      <h3>Discover Pins from IPFS</h3>
       <p class="info-text" style="margin-bottom: 1rem; color: #666;">
-        🔍 Scan nginx logs for successful uploads and add any missing pins to the database.
+        🔍 Scan IPFS for all current pins and add any missing ones to the database.
         Useful for discovering encoder uploads that aren't tracked yet.
       </p>
-      <button id="scanLogsBtn" class="btn btn-info">Scan Logs for Pins</button>
+      <button id="scanLogsBtn" class="btn btn-info">Scan IPFS for Pins</button>
       <div id="scanResults" style="margin-top: 1rem; display: none;"></div>
     </div>
   </main>
@@ -306,7 +306,7 @@
       const resultsDiv = document.getElementById('scanResults');
       
       btn.disabled = true;
-      btn.textContent = 'Scanning logs...';
+      btn.textContent = 'Scanning IPFS...';
       resultsDiv.style.display = 'none';
       
       try {
@@ -321,7 +321,7 @@
           resultsDiv.innerHTML = `
             <div style="padding: 1rem; background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 4px;">
               <strong>Scan Complete:</strong><br>
-              📊 Scanned: ${data.scanned} CIDs found in logs<br>
+              📊 Scanned: ${data.scanned} pins in IPFS<br>
               ✅ Added: ${data.added} new pins<br>
               ℹ️ Already tracked: ${data.alreadyExists} pins<br>
               ${data.errors && data.errors.length > 0 ? `<br>⚠️ Errors: ${data.errors.length}` : ''}
@@ -330,7 +330,7 @@
           resultsDiv.style.display = 'block';
           
           if (data.added > 0) {
-            showNotification(`✓ Added ${data.added} new pins from logs!`, 'success');
+            showNotification(`✓ Added ${data.added} new pins from IPFS!`, 'success');
             setTimeout(() => location.reload(), 2000);
           } else {
             showNotification('No new pins found', 'info');
@@ -348,7 +348,7 @@
         showNotification('✗ Scan failed: ' + error.message, 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Scan Logs for Pins';
+        btn.textContent = 'Scan IPFS for Pins';
       }
     });
   </script>
