@@ -128,6 +128,17 @@
         <button type="submit" class="btn btn-primary">Add Pin</button>
       </form>
     </div>
+
+    <!-- Scan Logs for Pins -->
+    <div class="card">
+      <h3>Discover Pins from Logs</h3>
+      <p class="info-text" style="margin-bottom: 1rem; color: #666;">
+        🔍 Scan nginx logs for successful uploads and add any missing pins to the database.
+        Useful for discovering encoder uploads that aren't tracked yet.
+      </p>
+      <button id="scanLogsBtn" class="btn btn-info">Scan Logs for Pins</button>
+      <div id="scanResults" style="margin-top: 1rem; display: none;"></div>
+    </div>
   </main>
 
   <footer>
@@ -287,6 +298,57 @@
         showNotification('✗ Network error: ' + error.message, 'error');
         submitBtn.disabled = false;
         submitBtn.textContent = originalText;
+      }
+    });
+
+    document.getElementById('scanLogsBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('scanLogsBtn');
+      const resultsDiv = document.getElementById('scanResults');
+      
+      btn.disabled = true;
+      btn.textContent = 'Scanning logs...';
+      resultsDiv.style.display = 'none';
+      
+      try {
+        const response = await fetch('/api/pins/scan-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          resultsDiv.innerHTML = `
+            <div style="padding: 1rem; background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 4px;">
+              <strong>Scan Complete:</strong><br>
+              📊 Scanned: ${data.scanned} CIDs found in logs<br>
+              ✅ Added: ${data.added} new pins<br>
+              ℹ️ Already tracked: ${data.alreadyExists} pins<br>
+              ${data.errors && data.errors.length > 0 ? `<br>⚠️ Errors: ${data.errors.length}` : ''}
+            </div>
+          `;
+          resultsDiv.style.display = 'block';
+          
+          if (data.added > 0) {
+            showNotification(`✓ Added ${data.added} new pins from logs!`, 'success');
+            setTimeout(() => location.reload(), 2000);
+          } else {
+            showNotification('No new pins found', 'info');
+          }
+        } else {
+          throw new Error(data.message || 'Scan failed');
+        }
+      } catch (error) {
+        resultsDiv.innerHTML = `
+          <div style="padding: 1rem; background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px;">
+            <strong>❌ Error:</strong> ${error.message}
+          </div>
+        `;
+        resultsDiv.style.display = 'block';
+        showNotification('✗ Scan failed: ' + error.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Scan Logs for Pins';
       }
     });
   </script>

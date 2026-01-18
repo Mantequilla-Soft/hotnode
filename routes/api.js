@@ -370,6 +370,101 @@ router.post('/pins/mark-migrated', requireAuth, async (req, res) => {
 });
 
 /**
+ * Scan nginx logs for uploaded pins and add them to database
+ */
+router.post('/pins/scan-logs', requireAuth, async (req, res) => {
+  try {
+    const fs = require('fs');
+    const config = require('../config.json');
+    const db = getDatabase();
+    const ipfs = getIPFSClient();
+    
+    const logPath = config.nginx.log_path;
+    
+    if (!fs.existsSync(logPath)) {
+      return res.status(404).json({ error: 'Log file not found' });
+    }
+    
+    logger.info('Scanning nginx logs for pins...');
+    
+    const content = fs.readFileSync(logPath, 'utf8');
+    const lines = content.split('\n');
+    
+    const foundCIDs = new Set();
+    let added = 0;
+    let alreadyExists = 0;
+    const errors = [];
+    
+    // Scan for successful /api/v0/add requests
+    for (const line of lines) {
+      if (!line.includes('/api/v0/add') || !line.includes('200')) continue;
+      
+      // Extract CID from response body (looking for Hash field in JSON)
+      const hashMatch = line.match(/"Hash":"(Qm[a-zA-Z0-9]{44,46}|baf[a-zA-Z0-9]{50,60})"/);
+      if (hashMatch) {
+        foundCIDs.add(hashMatch[1]);
+      }
+    }
+    
+    logger.info(`Found ${foundCIDs.size} unique CIDs in logs`);
+    
+    // Process each CID
+    for (const cid of foundCIDs) {
+      try {
+        // Check if already in database
+        const existing = await db.getPin(cid);
+        
+        if (existing) {
+          alreadyExists++;
+          continue;
+        }
+        
+        // Verify pin exists in IPFS
+        const isPinned = await ipfs.isPinned(cid);
+        
+        if (!isPinned) {
+          logger.warn(`CID ${cid} found in logs but not pinned in IPFS`);
+          continue;
+        }
+        
+        // Get size
+        const size = await ipfs.getCIDSize(cid);
+        
+        // Add to database
+        await db.insertPin({
+          cid,
+          size_bytes: size,
+          status: 'pending',
+          notes: 'Discovered from nginx logs'
+        });
+        
+        added++;
+        logger.info(`Added pin from logs: ${cid}`);
+        
+      } catch (error) {
+        errors.push(`${cid}: ${error.message}`);
+        logger.error(`Failed to process CID ${cid}:`, error);
+      }
+    }
+    
+    const summary = {
+      success: true,
+      scanned: foundCIDs.size,
+      added,
+      alreadyExists,
+      errors: errors.slice(0, 5)
+    };
+    
+    logger.info('Log scan complete:', summary);
+    
+    res.json(summary);
+  } catch (error) {
+    logger.error('Failed to scan logs:', error);
+    res.status(500).json({ error: 'Failed to scan logs', message: error.message });
+  }
+});
+
+/**
  * Trigger migration for specific pin
  */
 router.post('/pins/migrate', requireAuth, async (req, res) => {
