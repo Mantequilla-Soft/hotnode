@@ -67,14 +67,9 @@ async function validateCID(cid) {
     console.log(`🔎 Searching in "${config.mongodb.collection_legacy}" collection...`);
     const legacyCollection = db.collection(config.mongodb.collection_legacy);
     
-    // First, try direct CID match on common fields
+    // Use regex to match ipfs://CID or ipfs://CID/path patterns
     let legacyDoc = await legacyCollection.findOne({
-      $or: [
-        { video_v2: `ipfs://${cid}` },
-        { video_v2: { $regex: `^ipfs://${cid}` } },
-        { ipfs_hash: cid },
-        { 'files.cid': cid }
-      ]
+      video_v2: { $regex: new RegExp(`^ipfs://${cid}(/|$)`) }
     });
 
     if (legacyDoc) {
@@ -83,24 +78,7 @@ async function validateCID(cid) {
       foundDocument = legacyDoc;
       console.log(`   ✓ Found in legacy collection!`);
     } else {
-      // Scan through all video_v2 fields
-      console.log(`   Scanning video_v2 fields...`);
-      const legacyVideos = await legacyCollection.find({
-        video_v2: { $exists: true, $ne: null }
-      }).limit(1000).toArray();
-      
-      console.log(`   Checked ${legacyVideos.length} documents with video_v2 field`);
-      
-      for (const video of legacyVideos) {
-        const extractedCID = extractCIDFromIPFSUrl(video.video_v2);
-        if (extractedCID === cid) {
-          found = true;
-          foundIn = 'legacy (videos)';
-          foundDocument = video;
-          console.log(`   ✓ Found via video_v2 extraction!`);
-          break;
-        }
-      }
+      console.log(`   ✗ Not found (checked video_v2 field with regex)`);
     }
 
     if (!found) {
