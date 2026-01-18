@@ -110,15 +110,28 @@ class MongoDBClient {
         await this.connect();
       }
 
+      console.log(`Validating ${cids.length} CIDs against MongoDB...`);
       const foundCIDs = new Set();
 
-      // Check legacy videos collection
+      // Check legacy videos collection - build ipfs:// URL patterns
       const legacyCollection = this.db.collection(config.mongodb.collection_legacy);
+      
+      // Build array of possible ipfs:// URL formats for each CID
+      const ipfsUrls = cids.flatMap(cid => [
+        `ipfs://${cid}/manifest.m3u8`,  // Most common format
+        `ipfs://${cid}`,                 // Without path
+      ]);
+      
+      // Query with $or to match any of the patterns
       const legacyVideos = await legacyCollection.find({
-        video_v2: { $exists: true, $ne: null }
+        video_v2: { 
+          $regex: new RegExp(`^ipfs://(${cids.join('|')})(/|$)`)
+        }
       }).toArray();
       
-      // Extract CIDs from video_v2 fields
+      console.log(`Found ${legacyVideos.length} matches in legacy collection`);
+      
+      // Extract CIDs from found videos
       legacyVideos.forEach(video => {
         const extractedCID = this.extractCIDFromIPFSUrl(video.video_v2);
         if (extractedCID && cids.includes(extractedCID)) {
@@ -126,17 +139,21 @@ class MongoDBClient {
         }
       });
 
-      // Check new embed-video collection
+      // Check new embed-video collection - direct CID match
       const newCollection = this.db.collection(config.mongodb.collection_new);
       const embedVideos = await newCollection.find({
         manifest_cid: { $in: cids }
       }).toArray();
+      
+      console.log(`Found ${embedVideos.length} matches in embed-video collection`);
       
       embedVideos.forEach(video => {
         if (video.manifest_cid) {
           foundCIDs.add(video.manifest_cid);
         }
       });
+
+      console.log(`Validation complete: ${foundCIDs.size}/${cids.length} CIDs found`);
 
       // Return validation results
       return cids.map(cid => ({
