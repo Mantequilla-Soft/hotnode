@@ -108,26 +108,43 @@ class MigrationWorker {
         try {
           logger.info(`Migrating: ${pin.cid} (age: ${Math.floor((Date.now() - new Date(pin.added_at)) / (1000 * 60 * 60 * 24))} days)`);
 
-          // Pin to supernode
-          await this.pinToSupernode(pin.cid);
+          // First, check if pin already exists on supernode
+          const alreadyPinned = await this.verifySupernodePin(pin.cid);
 
-          // Wait a moment for pin to propagate
-          await this.sleep(2000);
-
-          // Verify pin exists on supernode
-          const verified = await this.verifySupernodePin(pin.cid);
-
-          if (verified) {
-            // Update database
+          if (alreadyPinned) {
+            // Pin already exists on supernode, just mark as migrated
+            logger.info(`Pin already exists on supernode: ${pin.cid}`);
+            
             await this.db.updatePin(pin.cid, {
               migrated: 1,
-              migrated_at: new Date().toISOString()
+              migrated_at: new Date().toISOString(),
+              notes: 'Already pinned on supernode'
             });
 
             succeeded++;
-            logger.info(`✓ Successfully migrated: ${pin.cid}`);
+            logger.info(`✓ Marked as migrated (already existed): ${pin.cid}`);
           } else {
-            throw new Error('Supernode verification failed');
+            // Pin doesn't exist, add it to supernode
+            await this.pinToSupernode(pin.cid);
+
+            // Wait a moment for pin to propagate
+            await this.sleep(2000);
+
+            // Verify pin exists on supernode
+            const verified = await this.verifySupernodePin(pin.cid);
+
+            if (verified) {
+              // Update database
+              await this.db.updatePin(pin.cid, {
+                migrated: 1,
+                migrated_at: new Date().toISOString()
+              });
+
+              succeeded++;
+              logger.info(`✓ Successfully migrated: ${pin.cid}`);
+            } else {
+              throw new Error('Supernode verification failed');
+            }
           }
 
           // Throttle to avoid overwhelming supernode
