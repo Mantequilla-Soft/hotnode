@@ -146,21 +146,14 @@
       </div>
     </div>
 
-    <!-- Recent Events -->
+    <!-- Recent Logs -->
     <div class="card">
-      <h3>Recent Events</h3>
-      <div class="events-list">
-        <% if (recentEvents && recentEvents.length > 0) { %>
-          <% recentEvents.forEach(event => { %>
-            <div class="event-item severity-<%= event.severity %>">
-              <div class="event-time"><%= new Date(event.timestamp).toLocaleString() %></div>
-              <div class="event-type"><strong><%= event.event_type %></strong></div>
-              <div class="event-message"><%= event.message %></div>
-            </div>
-          <% }); %>
-        <% } else { %>
-          <p class="text-muted">No recent events</p>
-        <% } %>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 style="margin: 0;">Recent Logs</h3>
+        <button id="refreshLogsBtn" class="btn btn-sm btn-secondary" onclick="refreshLogs()">🔄 Refresh</button>
+      </div>
+      <div id="logsContainer" class="logs-container" style="max-height: 400px; overflow-y: auto; background: #1a1a2e; border-radius: 8px; padding: 1rem; font-family: monospace; font-size: 0.85rem;">
+        <div class="log-loading" style="color: #888;">Loading logs...</div>
       </div>
     </div>
 
@@ -233,6 +226,63 @@
         showNotification('Error: ' + error.message, 'error');
       }
     });
+
+    // Logs display
+    function getLevelColor(level) {
+      switch(level) {
+        case 'error': return '#ef4444';
+        case 'warn': return '#f59e0b';
+        case 'info': return '#22c55e';
+        case 'debug': return '#3b82f6';
+        default: return '#888';
+      }
+    }
+
+    function getLevelIcon(level) {
+      switch(level) {
+        case 'error': return '❌';
+        case 'warn': return '⚠️';
+        case 'info': return '✓';
+        case 'debug': return '🔍';
+        default: return '•';
+      }
+    }
+
+    async function refreshLogs() {
+      const container = document.getElementById('logsContainer');
+      container.innerHTML = '<div style="color: #888;">Loading logs...</div>';
+      
+      try {
+        const response = await fetch('/api/logs/recent?lines=50');
+        const data = await response.json();
+        
+        if (data.logs && data.logs.length > 0) {
+          container.innerHTML = data.logs.map(log => `
+            <div style="margin-bottom: 0.5rem; border-bottom: 1px solid #333; padding-bottom: 0.5rem;">
+              <span style="color: #666; font-size: 0.8rem;">${log.timestamp || ''}</span>
+              <span style="color: ${getLevelColor(log.level)}; margin-left: 0.5rem;">${getLevelIcon(log.level)} ${log.level?.toUpperCase() || 'LOG'}</span>
+              <div style="color: #e0e0e0; margin-top: 0.25rem; word-break: break-word;">${escapeHtml(log.message || '')}</div>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = '<div style="color: #888;">No logs found</div>';
+        }
+      } catch (error) {
+        container.innerHTML = `<div style="color: #ef4444;">Error loading logs: ${error.message}</div>`;
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Load logs on page load
+    refreshLogs();
+    
+    // Auto-refresh logs every 30 seconds
+    setInterval(refreshLogs, 30000);
   </script>
 </body>
 </html>

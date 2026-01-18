@@ -635,6 +635,42 @@ router.get('/gc/logs', async (req, res) => {
 });
 
 /**
+ * Get recent log lines from combined.log
+ */
+router.get('/logs/recent', requireAuth, async (req, res) => {
+  try {
+    const { lines = 50 } = req.query;
+    const fs = require('fs');
+    const path = require('path');
+    
+    const logPath = path.join(__dirname, '..', 'logs', 'combined.log');
+    
+    if (!fs.existsSync(logPath)) {
+      return res.json({ logs: [], message: 'No log file found' });
+    }
+    
+    // Read last N lines efficiently
+    const content = fs.readFileSync(logPath, 'utf8');
+    const allLines = content.trim().split('\n');
+    const recentLines = allLines.slice(-parseInt(lines, 10));
+    
+    // Parse JSON log lines
+    const parsedLogs = recentLines.map(line => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return { level: 'info', message: line, timestamp: '' };
+      }
+    }).reverse(); // Most recent first
+    
+    res.json({ logs: parsedLogs });
+  } catch (error) {
+    logger.error('Failed to get recent logs:', error);
+    res.status(500).json({ error: 'Failed to get logs' });
+  }
+});
+
+/**
  * Test Discord webhook
  */
 router.post('/discord/test', async (req, res) => {
