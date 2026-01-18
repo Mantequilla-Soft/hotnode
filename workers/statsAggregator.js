@@ -24,6 +24,8 @@ class StatsAggregator {
 
   /**
    * Parse nginx logs for bandwidth stats
+   * Only tracks IPFS gateway requests (actual content delivery)
+   * Excludes internal monitoring and attack attempts
    */
   async parseNginxStats() {
     try {
@@ -32,8 +34,7 @@ class StatsAggregator {
         return { bytes_in: 0, bytes_out: 0, requests: 0 };
       }
 
-      // For simplicity, we'll use the last hour of logs
-      // In production, you might want to track offset like log parser
+      // Track the last hour of logs
       const oneHourAgo = Date.now() - (60 * 60 * 1000);
       
       const content = fs.readFileSync(this.logPath, 'utf8');
@@ -46,12 +47,22 @@ class StatsAggregator {
       for (const line of lines) {
         if (!line.trim()) continue;
         
-        // Extract timestamp, bytes sent, request body size
-        // This is a simplified parser - adjust based on your log format
-        const bytesMatch = line.match(/\s(\d+)\s.*body_bytes_sent:(\d+)/);
-        if (bytesMatch) {
-          bytes_out += parseInt(bytesMatch[1], 10);
-          requests++;
+        // Skip internal monitoring requests (127.0.0.1)
+        if (line.startsWith('127.0.0.1')) continue;
+        
+        // Only count IPFS gateway requests (/ipfs/ or /ipns/ paths)
+        // Format: IP - [timestamp] "METHOD PATH PROTOCOL" STATUS SIZE "USER_AGENT" TIME "BODY"
+        const gatewayMatch = line.match(/^\S+\s+-\s+\[([^\]]+)\]\s+"(GET|HEAD|POST)\s+\/(ipfs|ipns)\/\S+\s+HTTP\/[^"]+"\s+(\d+)\s+(\d+)/);
+        
+        if (gatewayMatch) {
+          const status = parseInt(gatewayMatch[4], 10);
+          const size = parseInt(gatewayMatch[5], 10);
+          
+          // Only count successful requests (2xx status codes)
+          if (status >= 200 && status < 300) {
+            bytes_out += size;
+            requests++;
+          }
         }
       }
       
@@ -101,25 +112,25 @@ class StatsAggregator {
 
   /**
    * Aggregate hourly stats
+   * Only tracks actual content delivery via nginx gateway
    */
   async aggregateHourlyStats() {
     try {
-      // Get nginx stats
+      // Get nginx stats (ONLY gateway requests for actual content delivery)
       const nginxStats = await this.parseNginxStats();
       
-      // Get IPFS stats
-      const bwStats = await this.getIPFSBandwidthStats();
+      // Get IPFS repo stats (for storage info, not bandwidth)
       const repoStats = await this.getRepoStats();
       
-      // Store hourly stats
+      // Store hourly stats - only nginx gateway traffic (actual 3speak content delivery)
       await this.db.insertTrafficStats({
         period: 'hourly',
-        bytes_in: nginxStats.bytes_in || bwStats.total_in,
-        bytes_out: nginxStats.bytes_out || bwStats.total_out,
+        bytes_in: nginxStats.bytes_in,
+        bytes_out: nginxStats.bytes_out,
         requests_count: nginxStats.requests
       });
       
-      logger.info('Hourly stats aggregated:', {
+      logger.info('Hourly stats aggregated (gateway requests only):', {
         bytes_in: nginxStats.bytes_in,
         bytes_out: nginxStats.bytes_out,
         requests: nginxStats.requests,
@@ -128,7 +139,6 @@ class StatsAggregator {
       
       return {
         nginx: nginxStats,
-        bandwidth: bwStats,
         repo: repoStats
       };
     } catch (error) {
