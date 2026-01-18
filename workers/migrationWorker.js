@@ -63,8 +63,17 @@ class MigrationWorker {
         }
       );
 
-      // Pin exists if response is successful and doesn't contain "not pinned"
-      return response.status === 200 && !response.data.includes('not pinned');
+      // Pin exists if Keys object contains the CID
+      if (response.status === 200 && response.data && response.data.Keys) {
+        return response.data.Keys[cid] !== undefined;
+      }
+      
+      // Handle string response
+      if (typeof response.data === 'string') {
+        return !response.data.includes('not pinned');
+      }
+      
+      return false;
     } catch (error) {
       logger.error(`Supernode verification failed for ${cid}:`, error.message);
       return false;

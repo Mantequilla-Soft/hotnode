@@ -131,8 +131,13 @@ async function verifyPin(cid) {
       }
     );
 
-    // Pin exists if response is successful and doesn't contain "not pinned"
-    const exists = response.status === 200 && !response.data.includes('not pinned');
+    // Pin exists if Keys object contains the CID
+    let exists = false;
+    if (response.status === 200 && response.data && response.data.Keys) {
+      exists = response.data.Keys[cid] !== undefined;
+    } else if (typeof response.data === 'string') {
+      exists = !response.data.includes('not pinned');
+    }
     
     if (exists) {
       console.log('✅ Pin verified on hotnode');

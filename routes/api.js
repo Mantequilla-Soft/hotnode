@@ -321,14 +321,23 @@ router.post('/pins/check-supernode', requireAuth, async (req, res) => {
       }
     );
     
-    // Pin exists if response is successful and doesn't contain "not pinned"
-    const exists = response.status === 200 && !response.data.includes('not pinned');
+    // Pin exists if Keys object contains the CID, or if no error message
+    let exists = false;
+    if (response.status === 200) {
+      if (response.data && response.data.Keys && response.data.Keys[cid]) {
+        exists = true;
+      } else if (typeof response.data === 'string') {
+        exists = !response.data.includes('not pinned');
+      } else if (response.data && response.data.Message) {
+        exists = !response.data.Message.includes('not pinned');
+      }
+    }
     
     logger.info(`Supernode check for ${cid}: ${exists ? 'exists' : 'not found'}`);
     
     res.json({ success: true, exists, cid });
   } catch (error) {
-    logger.error('Failed to check supernode:', error);
+    logger.error('Failed to check supernode:', error.message);
     res.status(500).json({ error: 'Failed to check supernode', message: error.message });
   }
 });
