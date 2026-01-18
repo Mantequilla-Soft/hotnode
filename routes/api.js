@@ -312,32 +312,72 @@ router.post('/pins/check-supernode', requireAuth, async (req, res) => {
     const axios = require('axios');
     const config = require('../config.json');
     
+    const requestUrl = `${config.supernode.api}/api/v0/pin/ls?arg=${cid}`;
+    logger.info(`🔍 SUPERNODE CHECK - Starting verification for CID: ${cid}`);
+    logger.info(`   Request URL: ${requestUrl}`);
+    logger.info(`   Supernode API: ${config.supernode.api}`);
+    logger.info(`   Timeout: ${config.supernode.timeout_ms || 30000}ms`);
+    
     // Check supernode
     const response = await axios.post(
-      `${config.supernode.api}/api/v0/pin/ls?arg=${cid}`,
+      requestUrl,
       null,
       {
         timeout: config.supernode.timeout_ms || 30000
       }
     );
     
-    // Pin exists if Keys object contains the CID, or if no error message
-    let exists = false;
-    if (response.status === 200) {
-      if (response.data && response.data.Keys && response.data.Keys[cid]) {
-        exists = true;
-      } else if (typeof response.data === 'string') {
-        exists = !response.data.includes('not pinned');
-      } else if (response.data && response.data.Message) {
-        exists = !response.data.Message.includes('not pinned');
-      }
+    logger.info(`📊 SUPERNODE RESPONSE - Status: ${response.status}`);
+    logger.info(`   Response data type: ${typeof response.data}`);
+    logger.info(`   Response data: ${JSON.stringify(response.data)}`);
+    logger.info(`   Has Keys: ${!!(response.data && response.data.Keys)}`);
+    logger.info(`   Has Message: ${!!(response.data && response.data.Message)}`);
+    if (response.data && response.data.Keys) {
+      logger.info(`   CID in Keys: ${!!(response.data.Keys[cid])}`);
+      logger.info(`   Keys object: ${JSON.stringify(response.data.Keys)}`);
+    }
+    if (response.data && response.data.Message) {
+      logger.info(`   Message: ${response.data.Message}`);
     }
     
-    logger.info(`Supernode check for ${cid}: ${exists ? 'exists' : 'not found'}`);
+    // Pin exists ONLY if Keys object contains the CID
+    // Any error (permission denied, not pinned, etc) = NOT FOUND
+    let exists = false;
+    let reason = 'unknown';
+    
+    if (response.status === 200) {
+      logger.info(`✓ Response status is 200, checking data structure...`);
+      
+      if (response.data && response.data.Keys && response.data.Keys[cid]) {
+        exists = true;
+        reason = 'CID found in Keys object';
+        logger.info(`✅ LOGIC BRANCH: ${reason}`);
+      } else if (response.data && response.data.Message) {
+        // Error message means NOT FOUND (permission denied, not pinned, etc)
+        exists = false;
+        reason = `Error message: ${response.data.Message}`;
+        logger.info(`❌ LOGIC BRANCH: ${reason}`);
+      } else if (typeof response.data === 'string') {
+        exists = !response.data.includes('not pinned');
+        reason = `String response check: ${exists ? 'no "not pinned" text' : 'contains "not pinned"'}`;
+        logger.info(`📝 LOGIC BRANCH: ${reason}`);
+      } else {
+        exists = false;
+        reason = 'No Keys, no Message, not string - treating as NOT FOUND';
+        logger.info(`⚠️  LOGIC BRANCH: ${reason}`);
+      }
+    } else {
+      logger.info(`❌ Response status is NOT 200: ${response.status}`);
+      reason = `HTTP status ${response.status}`;
+    }
+    
+    logger.info(`🎯 FINAL RESULT for ${cid}: ${exists ? 'EXISTS ✅' : 'NOT FOUND ❌'}`);
+    logger.info(`   Reason: ${reason}`);
+    logger.info(`─────────────────────────────────────────────────────────────`);
     
     res.json({ success: true, exists, cid });
   } catch (error) {
-    logger.error('Failed to check supernode:', error.message);
+    logger.error('❌ SUPERNODE CHECK ERROR:', error.message);
     res.status(500).json({ error: 'Failed to check supernode', message: error.message });
   }
 });
