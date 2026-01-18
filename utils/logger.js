@@ -1,7 +1,7 @@
 const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
-const config = require('../config.json');
+const config = require('./config');
 
 // Ensure logs directory exists
 const logsDir = path.join(__dirname, '../logs');

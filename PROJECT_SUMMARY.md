@@ -65,8 +65,8 @@ npm install
 npm run init-db
 
 # Copy and edit configuration
-cp config.example.json config.json
-nano config.json  # Add your MongoDB and supernode details
+cp .env.example .env
+nano .env  # Add your MongoDB and supernode details
 
 # Start development server
 npm run dev
@@ -74,17 +74,17 @@ npm run dev
 
 ### 2. Required Configuration Updates
 
-Before deployment, you **must** update these values in `config.json`:
+Before deployment, you **must** update these values in `.env`:
 
 **Critical:**
-- `mongodb.uri` - Your Traffic Director MongoDB connection string
-- `supernode.api` - Your supernode IPFS API endpoint
-- `hotnode.name` - Unique identifier for this hot node
+- `MONGODB_URI` - Your Traffic Director MongoDB connection string
+- `SUPERNODE_API` - Your supernode IPFS API endpoint
+- `HOTNODE_NAME` - Unique identifier for this hot node
 
 **Optional but Recommended:**
-- `discord.webhook_url` - Discord webhook for notifications
-- `migration.start_after_days` - Adjust migration timing (default: 4 days)
-- `migration.delete_after_days` - Adjust cleanup timing (default: 7 days)
+- `DISCORD_WEBHOOK_URL` - Discord webhook for notifications
+- `MIGRATION_START_AFTER_DAYS` - Adjust migration timing (default: 4 days)
+- `MIGRATION_DELETE_AFTER_DAYS` - Adjust cleanup timing (default: 7 days)
 
 ### 3. Pre-Deployment Testing
 
@@ -169,7 +169,7 @@ All documentation is included:
 
 ### Security Considerations
 
-1. **MongoDB Credentials** - Store securely in config.json (not committed to git)
+1. **MongoDB Credentials** - Store securely in .env (not committed to git)
 2. **Dashboard Access** - Should be internal/VPN only in production
 3. **IPFS API** - Open by design, but can be firewalled if needed
 4. **Regular Updates** - Keep dependencies updated for security patches
@@ -200,7 +200,7 @@ Once deployed, monitor these metrics to ensure proper operation:
 
 | Issue | Quick Fix |
 |-------|-----------|
-| Service won't start | Check config.json exists and is valid JSON |
+| Service won't start | Check .env exists and has required variables |
 | IPFS connection failed | Ensure IPFS daemon is running: `systemctl status ipfs` |
 | Database locked | Restart service: `systemctl restart ipfs-hotnode` |
 | Worker not running | Check system time, verify cron schedule |
@@ -226,8 +226,8 @@ Use this checklist for your first deployment:
 
 - [ ] Install dependencies (`npm install`)
 - [ ] Initialize database (`npm run init-db`)
-- [ ] Copy and configure `config.json`
-- [ ] Update MongoDB connection string
+- [ ] Copy and configure `.env` from `.env.example`
+- [ ] Update MONGODB_URI connection string
 - [ ] Update supernode API endpoint
 - [ ] Set unique hot node name
 - [ ] Test IPFS connection

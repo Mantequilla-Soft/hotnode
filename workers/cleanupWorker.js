@@ -2,7 +2,7 @@ const { getDatabase } = require('../utils/database');
 const { getIPFSClient } = require('../utils/ipfs');
 const { getDiscordNotifier } = require('../utils/discord');
 const logger = require('../utils/logger');
-const config = require('../config.json');
+const config = require('../utils/config');
 
 /**
  * Cleanup Worker

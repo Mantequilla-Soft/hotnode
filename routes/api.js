@@ -4,6 +4,7 @@ const { getDatabase } = require('../utils/database');
 const { getIPFSClient } = require('../utils/ipfs');
 const { getDiscordNotifier } = require('../utils/discord');
 const logger = require('../utils/logger');
+const config = require('../utils/config');
 
 // Import workers for manual execution
 const migrationWorker = require('../workers/migrationWorker');
@@ -310,7 +311,6 @@ router.post('/pins/check-supernode', requireAuth, async (req, res) => {
     }
     
     const axios = require('axios');
-    const config = require('../config.json');
     
     const requestUrl = `${config.supernode.api}/api/v0/pin/ls?arg=${cid}`;
     logger.info(`🔍 SUPERNODE CHECK - Starting verification for CID: ${cid}`);

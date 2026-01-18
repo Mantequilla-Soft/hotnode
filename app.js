@@ -8,6 +8,7 @@ const cron = require('node-cron');
 const { getDatabase } = require('./utils/database');
 const { getIPFSClient } = require('./utils/ipfs');
 const logger = require('./utils/logger');
+const config = require('./utils/config');
 
 // Import workers
 const logParser = require('./workers/logParser');
@@ -21,72 +22,7 @@ const healthRoutes = require('./routes/health');
 const adminRoutes = require('./routes/admin');
 const apiRoutes = require('./routes/api');
 
-// Load configuration with environment variable overrides
-let config;
-try {
-  const baseConfig = require('./config.json');
-  
-  // Override with environment variables
-  config = {
-    hotnode: {
-      name: process.env.HOTNODE_NAME || baseConfig.hotnode.name,
-      port: parseInt(process.env.HOTNODE_PORT) || baseConfig.hotnode.port,
-      ipfs_api: process.env.IPFS_API_URL || baseConfig.hotnode.ipfs_api,
-      ipfs_gateway: process.env.IPFS_GATEWAY_URL || baseConfig.hotnode.ipfs_gateway
-    },
-    supernode: {
-      api: process.env.SUPERNODE_API || baseConfig.supernode.api,
-      verify_endpoint: baseConfig.supernode.verify_endpoint,
-      timeout_ms: parseInt(process.env.SUPERNODE_TIMEOUT_MS) || baseConfig.supernode.timeout_ms
-    },
-    mongodb: {
-      uri: process.env.MONGODB_URI || baseConfig.mongodb.uri,
-      database: process.env.MONGODB_DATABASE || baseConfig.mongodb.database,
-      collection_legacy: process.env.MONGODB_COLLECTION_LEGACY || baseConfig.mongodb.collection_legacy,
-      collection_new: process.env.MONGODB_COLLECTION_NEW || baseConfig.mongodb.collection_new,
-      timeout_ms: parseInt(process.env.MONGODB_TIMEOUT_MS) || baseConfig.mongodb.timeout_ms
-    },
-    nginx: {
-      log_path: process.env.NGINX_LOG_PATH || baseConfig.nginx.log_path
-    },
-    migration: {
-      start_after_days: parseInt(process.env.MIGRATION_START_AFTER_DAYS) || baseConfig.migration.start_after_days,
-      delete_after_days: parseInt(process.env.MIGRATION_DELETE_AFTER_DAYS) || baseConfig.migration.delete_after_days,
-      batch_size: parseInt(process.env.MIGRATION_BATCH_SIZE) || baseConfig.migration.batch_size,
-      check_interval_hours: parseInt(process.env.MIGRATION_CHECK_INTERVAL_HOURS) || baseConfig.migration.check_interval_hours,
-      throttle_delay_ms: parseInt(process.env.MIGRATION_THROTTLE_DELAY_MS) || baseConfig.migration.throttle_delay_ms,
-      max_retries: parseInt(process.env.MIGRATION_MAX_RETRIES) || baseConfig.migration.max_retries
-    },
-    cleanup: {
-      invalid_retention_days: parseInt(process.env.CLEANUP_INVALID_RETENTION_DAYS) || baseConfig.cleanup.invalid_retention_days,
-      gc_schedule: process.env.CLEANUP_GC_SCHEDULE || baseConfig.cleanup.gc_schedule,
-      gc_timeout_minutes: parseInt(process.env.CLEANUP_GC_TIMEOUT_MINUTES) || baseConfig.cleanup.gc_timeout_minutes
-    },
-    stats: {
-      retention_days: parseInt(process.env.STATS_RETENTION_DAYS) || baseConfig.stats.retention_days,
-      aggregation_interval_minutes: parseInt(process.env.STATS_AGGREGATION_INTERVAL_MINUTES) || baseConfig.stats.aggregation_interval_minutes
-    },
-    discord: {
-      webhook_url: process.env.DISCORD_WEBHOOK_URL || baseConfig.discord.webhook_url,
-      notify_events: baseConfig.discord.notify_events
-    },
-    health: {
-      disk_warning_percent: parseInt(process.env.HEALTH_DISK_WARNING_PERCENT) || baseConfig.health.disk_warning_percent,
-      disk_critical_percent: parseInt(process.env.HEALTH_DISK_CRITICAL_PERCENT) || baseConfig.health.disk_critical_percent
-    },
-    logging: {
-      level: process.env.LOG_LEVEL || baseConfig.logging.level,
-      file: process.env.LOG_FILE || baseConfig.logging.file,
-      max_size: process.env.LOG_MAX_SIZE || baseConfig.logging.max_size,
-      max_files: parseInt(process.env.LOG_MAX_FILES) || baseConfig.logging.max_files
-    }
-  };
-  
-  logger.info('Configuration loaded successfully');
-} catch (error) {
-  logger.error('Failed to load config.json. Copy config.example.json to config.json and configure it.');
-  process.exit(1);
-}
+logger.info('Configuration loaded successfully');
 
 // Initialize Express app
 const app = express();

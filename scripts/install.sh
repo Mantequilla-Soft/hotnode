@@ -211,12 +211,13 @@ install_hotnode_service() {
     cd "$INSTALL_DIR"
     su - $IPFS_USER -c "cd $INSTALL_DIR && npm install --production"
     
-    # Copy example config if config doesn't exist
-    if [ ! -f "$INSTALL_DIR/config.json" ]; then
-        log_info "Creating configuration file..."
-        cp "$INSTALL_DIR/config.example.json" "$INSTALL_DIR/config.json"
-        chown $IPFS_USER:$IPFS_GROUP "$INSTALL_DIR/config.json"
-        log_warn "Please edit $INSTALL_DIR/config.json with your settings"
+    # Copy example .env if .env doesn't exist
+    if [ ! -f "$INSTALL_DIR/.env" ]; then
+        log_info "Creating environment file..."
+        cp "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
+        chown $IPFS_USER:$IPFS_GROUP "$INSTALL_DIR/.env"
+        chmod 600 "$INSTALL_DIR/.env"
+        log_warn "Please edit $INSTALL_DIR/.env with your settings"
     fi
     
     # Initialize database
@@ -269,15 +270,16 @@ print_summary() {
     echo "  IPFS Gateway: http://localhost:8080"
     echo "  Hot Node Dashboard: http://$(hostname -I | awk '{print $1}'):3100"
     echo ""
-    echo "  Configuration: $INSTALL_DIR/config.json"
+    echo "  Configuration: $INSTALL_DIR/.env"
     echo "  Logs: journalctl -u ipfs-hotnode -f"
     echo ""
     echo "═══════════════════════════════════════════════════════════"
     log_warn "Next steps:"
-    echo "  1. Edit $INSTALL_DIR/config.json with your settings"
-    echo "  2. Update MongoDB connection details"
-    echo "  3. Add Discord webhook URL (optional)"
-    echo "  4. Restart service: systemctl restart ipfs-hotnode"
+    echo "  1. Edit $INSTALL_DIR/.env with your settings"
+    echo "  2. Set ADMIN_PASSWORD and SUPERNODE_API"
+    echo "  3. Add MONGODB_URI for video validation (optional)"
+    echo "  4. Add DISCORD_WEBHOOK_URL for notifications (optional)"
+    echo "  5. Restart service: systemctl restart ipfs-hotnode"
     echo "═══════════════════════════════════════════════════════════"
     echo ""
 }

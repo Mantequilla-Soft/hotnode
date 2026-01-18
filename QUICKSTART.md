@@ -12,17 +12,17 @@ npm install
 ### 2. Configure
 
 ```bash
-# Copy example config
-cp config.example.json config.json
+# Copy example environment file
+cp .env.example .env
 
 # Edit with your settings
-nano config.json
+nano .env
 ```
 
 **Minimum required changes:**
-- `mongodb.uri` → Your MongoDB connection string
-- `supernode.api` → Your supernode URL
-- `hotnode.name` → Unique name like "HotNode-Dev"
+- `ADMIN_PASSWORD` → Your secure admin password
+- `SUPERNODE_API` → Supernode IPFS API (default: http://65.21.201.94:5002)
+- `HOTNODE_NAME` → Unique name like "HotNode-Dev"
 
 ### 3. Initialize Database
 
@@ -112,7 +112,7 @@ services:
     depends_on:
       - ipfs
     volumes:
-      - ./config.json:/app/config.json
+      - ./.env:/app/.env
       - ./database:/app/database
     environment:
       - NODE_ENV=production
@@ -189,10 +189,10 @@ systemctl start ipfs
 
 ```bash
 # Copy from example
-cp config.example.json config.json
+cp .env.example .env
 
-# Verify it's valid JSON
-cat config.json | jq .
+# Edit with your settings
+nano .env
 ```
 
 ### Database Locked

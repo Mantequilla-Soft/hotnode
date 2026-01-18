@@ -1,6 +1,6 @@
 const axios = require('axios');
 const fs = require('fs');
-const config = require('../config.json');
+const config = require('./config');
 
 class IPFSClient {
   constructor(apiUrl = config.hotnode.ipfs_api) {

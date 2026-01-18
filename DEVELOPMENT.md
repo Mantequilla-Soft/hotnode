@@ -6,8 +6,8 @@
 ipfs-hotnode/
 ├── app.js                      # Main Express application
 ├── package.json                # Node.js dependencies
-├── config.json                 # Runtime configuration (not in git)
-├── config.example.json         # Configuration template
+├── .env                        # Runtime configuration (not in git)
+├── .env.example                # Environment variable template
 ├── README.md                   # User documentation
 ├── DEPLOYMENT.md               # Deployment guide
 ├── DEVELOPMENT.md              # This file
@@ -15,6 +15,7 @@ ipfs-hotnode/
 │   ├── install.sh             # Installation script
 │   └── initDatabase.js        # Database initialization
 ├── utils/
+│   ├── config.js              # Centralized config (loads .env)
 │   ├── database.js            # SQLite database wrapper
 │   ├── ipfs.js                # IPFS API client
 │   ├── mongo.js               # MongoDB client
@@ -68,11 +69,11 @@ cd ipfs-hotnode
 # Install dependencies
 npm install
 
-# Copy configuration
-cp config.example.json config.json
+# Copy environment file
+cp .env.example .env
 
 # Edit configuration for local development
-nano config.json
+nano .env
 
 # Initialize database
 npm run init-db
@@ -83,28 +84,25 @@ npm run dev
 
 ### Configuration for Development
 
-Edit `config.json`:
+Edit `.env`:
 
-```json
-{
-  "hotnode": {
-    "name": "HotNode-Dev",
-    "port": 3101,
-    "ipfs_api": "http://127.0.0.1:5001",
-    "ipfs_gateway": "http://127.0.0.1:8080"
-  },
-  "mongodb": {
-    "uri": "mongodb://localhost:27017/trafficdirector",
-    "database": "trafficdirector",
-    "collection": "directors"
-  },
-  "nginx": {
-    "log_path": "/var/log/nginx/ipfs-access.log"
-  },
-  "logging": {
-    "level": "debug"
-  }
-}
+```bash
+# Hot Node Configuration
+HOTNODE_NAME=HotNode-Dev
+HOTNODE_PORT=3101
+IPFS_API=http://127.0.0.1:5001
+IPFS_GATEWAY=http://127.0.0.1:8080
+
+# MongoDB (for CID validation)
+MONGODB_URI=mongodb://localhost:27017/trafficdirector
+MONGODB_DATABASE=trafficdirector
+MONGODB_COLLECTION=directors
+
+# Nginx log path
+NGINX_LOG_PATH=/var/log/nginx/ipfs-access.log
+
+# Logging
+LOG_LEVEL=debug
 ```
 
 ## Architecture
@@ -326,8 +324,8 @@ refactor: improve log parsing performance
 ### Enable Debug Logging
 
 ```bash
-# Set log level to debug
-sed -i 's/"level": "info"/"level": "debug"/' config.json
+# Set log level to debug in .env
+sed -i 's/LOG_LEVEL=info/LOG_LEVEL=debug/' .env
 
 # Restart service
 systemctl restart ipfs-hotnode

@@ -3,7 +3,7 @@ const router = express.Router();
 const { getDatabase } = require('../utils/database');
 const { getIPFSClient } = require('../utils/ipfs');
 const logger = require('../utils/logger');
-const config = require('../config.json');
+const config = require('../utils/config');
 
 /**
  * Admin Dashboard Routes

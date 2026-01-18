@@ -6,7 +6,7 @@ ipfs-hotnode/
 ├── 📄 Core Application Files
 │   ├── app.js                          # Main Express application (entry point)
 │   ├── package.json                    # Node.js dependencies and scripts
-│   ├── config.example.json             # Configuration template
+│   ├── .env.example                    # Environment variable template
 │   └── .gitignore                      # Git ignore rules
 │
 ├── 📚 Documentation
@@ -23,6 +23,7 @@ ipfs-hotnode/
 │
 ├── 🛠️ Utility Modules
 │   ├── utils/
+│   │   ├── config.js                  # Centralized configuration (loads .env)
 │   │   ├── database.js                # SQLite database wrapper
 │   │   ├── ipfs.js                    # IPFS API client
 │   │   ├── mongo.js                   # MongoDB client (for validation)
@@ -72,7 +73,7 @@ ipfs-hotnode/
 │   └── node_modules/                  # npm dependencies (after npm install)
 │
 └── 🔒 Ignored Files (.gitignore)
-    ├── config.json                    # User configuration (not in git)
+    ├── .env                           # User configuration (not in git)
     ├── database/*.db                  # Database files (not in git)
     ├── logs/*.log                     # Log files (not in git)
     └── node_modules/                  # Dependencies (not in git)
@@ -152,32 +153,28 @@ ipfs-hotnode/
 
 ## Configuration Structure
 
-### config.json (User-Editable)
-```javascript
-{
-  hotnode: {
-    name: "Unique identifier",
-    port: 3101,
-    ipfs_api: "IPFS API URL",
-    ipfs_gateway: "IPFS gateway URL"
-  },
-  supernode: {
-    api: "Supernode IPFS API",
-    verify_endpoint: "/api/v0/pin/ls"
-  },
-  mongodb: {
-    uri: "MongoDB connection string",
-    collection: "Collection name"
-  },
-  migration: {
-    start_after_days: 4,
-    delete_after_days: 7,
-    batch_size: 10
-  },
-  discord: {
-    webhook_url: "Discord webhook"
-  }
-}
+### .env (User-Editable)
+```bash
+# Hot Node Configuration
+HOTNODE_NAME=HotNode-1              # Unique identifier
+HOTNODE_PORT=3101                   # Dashboard port
+IPFS_API=http://127.0.0.1:5001      # Local IPFS API URL
+IPFS_GATEWAY=http://127.0.0.1:8080  # Local IPFS gateway URL
+
+# Supernode Configuration
+SUPERNODE_API=http://65.21.201.94:5002  # Supernode IPFS API
+
+# MongoDB Configuration
+MONGODB_URI=mongodb://localhost:27017/trafficdirector
+MONGODB_COLLECTION=directors
+
+# Migration Settings
+MIGRATION_START_AFTER_DAYS=4
+MIGRATION_DELETE_AFTER_DAYS=7
+MIGRATION_BATCH_SIZE=10
+
+# Discord Notifications
+DISCORD_WEBHOOK_URL=                # Optional Discord webhook
 ```
 
 ## Database Schema
@@ -255,8 +252,8 @@ ipfs-hotnode/
 
 ## Security Features
 
-- No credentials in code (all in config.json)
-- Config.json not committed to git
+- No credentials in code (all in .env)
+- .env not committed to git
 - MongoDB validation prevents abuse
 - systemd service hardening
 - Firewall configuration included

@@ -58,11 +58,8 @@ cp .env.example .env
 nano .env
 
 # Set your admin password and other settings
-# Required: ADMIN_PASSWORD, MONGODB_URI, SUPERNODE_API
-
-# Copy and edit configuration (optional - can use env vars)
-cp config.example.json config.json
-nano config.json
+# Required: ADMIN_PASSWORD, SUPERNODE_API
+# Optional: MONGODB_URI (for video validation)
 
 # Start the service
 npm start
@@ -84,9 +81,7 @@ sudo journalctl -u ipfs-hotnode -f
 
 ## Configuration
 
-Configuration can be done via:
-1. **Environment variables** (`.env` file) - Recommended for secrets
-2. **Configuration file** (`config.json`) - For defaults and non-sensitive settings
+All configuration is done via environment variables in the `.env` file.
 
 ### Environment Variables
 
@@ -95,28 +90,27 @@ Copy `.env.example` to `.env` and configure:
 ```bash
 # Required
 ADMIN_PASSWORD=your_secure_password_here
-MONGODB_URI=mongodb://username:password@host:port/database
-SUPERNODE_API=https://your-supernode.com:5001
+SUPERNODE_API=http://65.21.201.94:5002
 
-# Optional (overrides config.json)
+# Optional
+MONGODB_URI=mongodb://username:password@host:port/database
 HOTNODE_NAME=HotNode-01
 HOTNODE_PORT=3101
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+
+# Migration Settings
+MIGRATION_START_AFTER_DAYS=4
+MIGRATION_DELETE_AFTER_DAYS=7
+
+# Cleanup Settings
+CLEANUP_INVALID_RETENTION_DAYS=2
+
+# Health Thresholds
+HEALTH_DISK_WARNING_PERCENT=80
+HEALTH_DISK_CRITICAL_PERCENT=90
 ```
 
-See `.env.example` for all available options.
-
-### Config File
-
-Edit `config.json` for settings like:
-- Migration timing and batch sizes
-- Cleanup schedules
-- Health check thresholds
-- Worker intervals
-
-See `config.example.json` for full configuration options.
-
-**Note:** Environment variables override `config.json` settings.
+See `.env.example` for all available options with descriptions.
 
 ## Admin Dashboard
 
@@ -197,7 +191,7 @@ Encoder → nginx:5001 → Kubo IPFS → Hot Node Service → Supernode
 - ✅ Sensitive credentials in `.env` (not committed to git)
 - ✅ Regular GC prevents disk exhaustion
 
-**Important:** Never commit `.env` or `config.json` to version control!
+**Important:** Never commit `.env` to version control!
 
 ## Monitoring
 

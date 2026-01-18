@@ -42,42 +42,37 @@ The script will:
 
 ### Post-Installation Configuration
 
-After installation, edit the configuration file:
+After installation, edit the environment file:
 
 ```bash
-sudo nano /opt/ipfs-hotnode/config.json
+sudo nano /opt/ipfs-hotnode/.env
 ```
 
 **Required Configuration:**
 
-1. **MongoDB Connection** - Update with Traffic Director details:
-```json
-"mongodb": {
-  "uri": "mongodb://username:password@host:27017/database",
-  "database": "trafficdirector",
-  "collection": "directors"
-}
+1. **Admin Password** - Set a secure password:
+```bash
+ADMIN_PASSWORD=your_secure_password_here
 ```
 
-2. **Supernode Configuration** - Update with your supernode API:
-```json
-"supernode": {
-  "api": "https://supernode.example.com:5001"
-}
+2. **Supernode API** - Set the supernode URL:
+```bash
+SUPERNODE_API=http://65.21.201.94:5002
 ```
 
 3. **Hot Node Name** - Set a unique identifier:
-```json
-"hotnode": {
-  "name": "HotNode-01"
-}
+```bash
+HOTNODE_NAME=HotNode-01
 ```
 
-4. **Discord Webhook** (optional):
-```json
-"discord": {
-  "webhook_url": "https://discord.com/api/webhooks/..."
-}
+4. **MongoDB Connection** (optional, for video validation):
+```bash
+MONGODB_URI=mongodb://username:password@host:27017/database
+```
+
+5. **Discord Webhook** (optional):
+```bash
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
 ```
 
 After editing, restart the service:
@@ -186,9 +181,10 @@ sudo chown -R ipfs:ipfs /opt/ipfs-hotnode
 # Install dependencies
 sudo -u ipfs npm install --production
 
-# Copy configuration
-sudo cp config.example.json config.json
-sudo nano config.json  # Edit with your settings
+# Copy environment file
+sudo cp .env.example .env
+sudo chmod 600 .env
+sudo nano .env  # Edit with your settings
 
 # Initialize database
 sudo -u ipfs npm run init-db
@@ -463,7 +459,7 @@ echo "ipfs hard nofile 65536" | sudo tee -a /etc/security/limits.conf
 The IPFS API is intentionally open (no authentication) for the encoder contribution model. However:
 
 1. **Use firewall rules** to restrict access if needed
-2. **Keep MongoDB credentials secure** in config.json
+2. **Keep credentials secure** in .env file with 600 permissions
 3. **Restrict dashboard access** to internal network/VPN
 4. **Regular updates** for security patches
 
