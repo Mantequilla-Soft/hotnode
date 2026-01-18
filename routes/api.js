@@ -637,7 +637,7 @@ router.get('/gc/logs', async (req, res) => {
 /**
  * Get recent log lines from combined.log
  */
-router.get('/logs/recent', requireAuth, async (req, res) => {
+router.get('/logs/recent', async (req, res) => {
   try {
     const { lines = 50 } = req.query;
     const fs = require('fs');
