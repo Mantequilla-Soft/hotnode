@@ -157,11 +157,10 @@ Response includes:
 
 The service runs several background workers:
 
-1. **Log Parser** (every 5 minutes) - Tracks new uploads from nginx logs
-2. **MongoDB Validator** (every 30 minutes) - Validates CIDs against Traffic Director
-3. **Migration Worker** (every 12 hours) - Migrates old content to supernode
-4. **Cleanup Worker** (daily at 2 AM) - Unpins migrated content, runs GC
-5. **Stats Aggregator** (hourly) - Collects bandwidth and repo statistics
+1. **MongoDB Validator** (every 30 minutes) - Validates CIDs against Traffic Director
+2. **Migration Worker** (every 12 hours) - Migrates old content to supernode
+3. **Cleanup Worker** (daily at 2 AM) - Unpins migrated content, runs GC
+4. **Stats Aggregator** (hourly) - Collects bandwidth and repo statistics
 
 ## Architecture
 
@@ -243,7 +242,6 @@ npm run dev
 npm run init-db
 
 # Test individual workers
-npm run worker:logs      # Log parser
 npm run worker:validate  # MongoDB validator
 npm run worker:migrate   # Migration worker
 npm run worker:cleanup   # Cleanup & GC

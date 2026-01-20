@@ -7,7 +7,7 @@
     "start": "node app.js",
     "dev": "NODE_ENV=development node app.js",
     "init-db": "node scripts/initDatabase.js",
-    "worker:logs": "node -e 'require(\"./workers/logParser\").run().then(r => console.log(r))'",
+
     "worker:validate": "node -e 'require(\"./workers/mongoValidator\").run().then(r => console.log(r))'",
     "worker:migrate": "node -e 'require(\"./workers/migrationWorker\").run().then(r => console.log(r))'",
     "worker:cleanup": "node -e 'require(\"./workers/cleanupWorker\").run().then(r => console.log(r))'",

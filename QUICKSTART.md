@@ -70,9 +70,6 @@ curl http://localhost:3100/health
 ### Test Workers Manually
 
 ```bash
-# Run log parser
-npm run worker:logs
-
 # Run MongoDB validator (requires MongoDB connection)
 npm run worker:validate
 

@@ -22,7 +22,6 @@ ipfs-hotnode/
 │   ├── discord.js             # Discord notifications
 │   └── logger.js              # Winston logger
 ├── workers/
-│   ├── logParser.js           # Parse nginx logs
 │   ├── mongoValidator.js      # Validate CIDs
 │   ├── migrationWorker.js     # Migrate to supernode
 │   ├── cleanupWorker.js       # Cleanup and GC
@@ -111,11 +110,10 @@ LOG_LEVEL=debug
 
 Workers run on scheduled intervals using `node-cron`:
 
-1. **Log Parser** (5 min) - Reads nginx access logs, extracts new upload CIDs
-2. **MongoDB Validator** (30 min) - Validates pending CIDs against MongoDB
-3. **Migration Worker** (12 hours) - Migrates old pins to supernode
-4. **Cleanup Worker** (daily) - Unpins migrated content, runs GC
-5. **Stats Aggregator** (hourly) - Collects bandwidth and repo statistics
+1. **MongoDB Validator** (30 min) - Validates pending CIDs against MongoDB
+2. **Migration Worker** (12 hours) - Migrates old pins to supernode
+3. **Cleanup Worker** (daily) - Unpins migrated content, runs GC
+4. **Stats Aggregator** (hourly) - Collects bandwidth and repo statistics
 
 ### Database Schema
 
@@ -164,8 +162,8 @@ Workers run on scheduled intervals using `node-cron`:
 
 ```javascript
 // In Node.js REPL or test script
-const logParser = require('./workers/logParser');
-const result = await logParser.run();
+const mongoValidator = require('./workers/mongoValidator');
+const result = await mongoValidator.run();
 console.log(result);
 ```
 
@@ -365,9 +363,8 @@ journalctl -u ipfs-hotnode -f
 
 ### Workers
 
-- Log parser can be CPU intensive with large logs
-- Consider log rotation to keep files small
-- Adjust worker intervals based on traffic
+- Adjust worker intervals based on traffic patterns
+- Monitor worker execution times
 
 ## Monitoring
 

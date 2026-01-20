@@ -32,7 +32,6 @@ ipfs-hotnode/
 │
 ├── ⚙️ Worker Modules (Automated Tasks)
 │   ├── workers/
-│   │   ├── logParser.js               # Parse nginx logs (every 5 min)
 │   │   ├── mongoValidator.js          # Validate CIDs (every 30 min)
 │   │   ├── migrationWorker.js         # Migrate to supernode (every 12h)
 │   │   ├── cleanupWorker.js           # Cleanup & GC (daily)
@@ -109,7 +108,6 @@ ipfs-hotnode/
 - **utils/discord.js** - Event notifications
 
 ### Business Logic (Workers)
-- **workers/logParser.js** - Discovers new uploads from nginx logs
 - **workers/mongoValidator.js** - Validates CIDs are legitimate
 - **workers/migrationWorker.js** - Pins content to supernode
 - **workers/cleanupWorker.js** - Unpins old content, runs GC
@@ -210,7 +208,6 @@ DISCORD_WEBHOOK_URL=                # Optional Discord webhook
 
 | Worker | Frequency | Purpose |
 |--------|-----------|---------|
-| Log Parser | Every 5 minutes | Track new uploads |
 | MongoDB Validator | Every 30 minutes | Validate CIDs |
 | Migration Worker | Every 12 hours | Migrate to supernode |
 | Cleanup Worker | Daily at 2 AM | Unpin & GC |

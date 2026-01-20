@@ -11,7 +11,6 @@ const logger = require('./utils/logger');
 const config = require('./utils/config');
 
 // Import workers
-const logParser = require('./workers/logParser');
 const mongoValidator = require('./workers/mongoValidator');
 const migrationWorker = require('./workers/migrationWorker');
 const cleanupWorker = require('./workers/cleanupWorker');
@@ -96,16 +95,6 @@ async function initializeDatabase() {
 // Schedule workers
 function scheduleWorkers() {
   logger.info('Scheduling workers...');
-
-  // Log Parser - Every 5 minutes
-  cron.schedule('*/5 * * * *', async () => {
-    logger.info('Running log parser worker...');
-    try {
-      await logParser.run();
-    } catch (error) {
-      logger.error('Log parser worker failed:', error);
-    }
-  });
 
   // MongoDB Validator - Every 30 minutes
   cron.schedule('*/30 * * * *', async () => {

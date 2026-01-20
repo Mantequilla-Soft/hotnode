@@ -9,17 +9,16 @@ The IPFS Hot Node Service has been fully scaffolded with all core components imp
 ### Core Application
 - ✅ Express.js web server with EJS templating
 - ✅ SQLite database with complete schema
-- ✅ 5 automated worker modules
+- ✅ 4 automated worker modules
 - ✅ Health check API for Traffic Director integration
 - ✅ Admin dashboard with web UI
 - ✅ Complete REST API for management
 
 ### Workers (Automated Background Tasks)
-1. **Log Parser** - Parses nginx logs every 5 minutes to track uploads
-2. **MongoDB Validator** - Validates CIDs against Traffic Director every 30 minutes
-3. **Migration Worker** - Migrates old content to supernode every 12 hours
-4. **Cleanup Worker** - Unpins migrated content and runs GC daily
-5. **Stats Aggregator** - Collects bandwidth/repo stats hourly
+1. **MongoDB Validator** - Validates CIDs against Traffic Director every 30 minutes
+2. **Migration Worker** - Migrates old content to supernode every 12 hours
+3. **Cleanup Worker** - Unpins migrated content and runs GC daily
+4. **Stats Aggregator** - Collects bandwidth/repo stats hourly
 
 ### Utility Modules
 - ✅ IPFS client wrapper (full API integration)
@@ -137,9 +136,8 @@ To integrate with Traffic Director:
 
 ### Advanced Customizations
 1. **MongoDB Query** - Modify `utils/mongo.js` to match your schema
-2. **Log Format** - Adjust log parser regex in `workers/logParser.js`
-3. **Health Criteria** - Modify health checks in `routes/health.js`
-4. **Database Schema** - Extend tables in `scripts/initDatabase.js`
+2. **Health Criteria** - Modify health checks in `routes/health.js`
+3. **Database Schema** - Extend tables in `scripts/initDatabase.js`
 
 ## 📝 Documentation Structure
 
