@@ -24,8 +24,8 @@ class StatsAggregator {
 
   /**
    * Parse nginx logs for bandwidth stats
-   * Only tracks IPFS gateway requests (actual content delivery)
-   * Excludes internal monitoring and attack attempts
+   * Tracks IPFS gateway requests (actual content delivery)
+   * Log format: IP - [timestamp] "METHOD PATH PROTOCOL" STATUS BYTES "USER_AGENT" TIME
    */
   async parseNginxStats() {
     try {
@@ -34,39 +34,33 @@ class StatsAggregator {
         return { bytes_in: 0, bytes_out: 0, requests: 0 };
       }
 
-      // Track the last hour of logs
-      const oneHourAgo = Date.now() - (60 * 60 * 1000);
-      
       const content = fs.readFileSync(this.logPath, 'utf8');
       const lines = content.split('\n');
       
       let bytes_out = 0;
-      let bytes_in = 0;
       let requests = 0;
       
       for (const line of lines) {
         if (!line.trim()) continue;
         
-        // Skip internal monitoring requests (127.0.0.1)
-        if (line.startsWith('127.0.0.1')) continue;
+        // Parse nginx log format: IP - [timestamp] "METHOD PATH PROTOCOL" STATUS BYTES "USER_AGENT" TIME
+        // Example: 1.2.3.4 - [27/Jan/2026:10:15:30 +0000] "GET /ipfs/QmXXX HTTP/1.1" 200 1234567 "Mozilla/5.0" 0.123
+        const match = line.match(/^(\S+)\s+-\s+\[([^\]]+)\]\s+"(\S+)\s+(\S+)\s+HTTP\/[^"]+"\s+(\d+)\s+(\d+)\s+"([^"]+)"\s+(\S+)/);
         
-        // Only count IPFS gateway requests (/ipfs/ or /ipns/ paths)
-        // Format: IP - [timestamp] "METHOD PATH PROTOCOL" STATUS SIZE "USER_AGENT" TIME "BODY"
-        const gatewayMatch = line.match(/^\S+\s+-\s+\[([^\]]+)\]\s+"(GET|HEAD|POST)\s+\/(ipfs|ipns)\/\S+\s+HTTP\/[^"]+"\s+(\d+)\s+(\d+)/);
-        
-        if (gatewayMatch) {
-          const status = parseInt(gatewayMatch[4], 10);
-          const size = parseInt(gatewayMatch[5], 10);
+        if (match) {
+          const path = match[4];
+          const status = parseInt(match[5], 10);
+          const bytes = parseInt(match[6], 10);
           
-          // Only count successful requests (2xx status codes)
-          if (status >= 200 && status < 300) {
-            bytes_out += size;
+          // Only count IPFS gateway requests (/ipfs/ or /ipns/ paths)
+          if ((path.startsWith('/ipfs/') || path.startsWith('/ipns/')) && status >= 200 && status < 300) {
+            bytes_out += bytes;
             requests++;
           }
         }
       }
       
-      return { bytes_in, bytes_out, requests };
+      return { bytes_in: 0, bytes_out, requests };
     } catch (error) {
       logger.error('Failed to parse nginx stats:', error);
       return { bytes_in: 0, bytes_out: 0, requests: 0 };

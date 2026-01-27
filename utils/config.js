@@ -61,7 +61,7 @@ const config = {
   },
   
   nginx: {
-    log_path: optional('NGINX_LOG_PATH', '/var/log/nginx/ipfs-access.log')
+    log_path: optional('NGINX_LOG_PATH', '/var/log/nginx/ipfs-gateway.log')
   },
   
   migration: {
