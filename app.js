@@ -15,6 +15,7 @@ const mongoValidator = require('./workers/mongoValidator');
 const migrationWorker = require('./workers/migrationWorker');
 const cleanupWorker = require('./workers/cleanupWorker');
 const statsAggregator = require('./workers/statsAggregator');
+const pinDiscoveryWorker = require('./workers/pinDiscoveryWorker');
 
 // Import routes
 const healthRoutes = require('./routes/health');
@@ -95,6 +96,16 @@ async function initializeDatabase() {
 // Schedule workers
 function scheduleWorkers() {
   logger.info('Scheduling workers...');
+
+  // Pin Discovery Worker - Every hour at :05 (runs first to discover new pins)
+  cron.schedule('5 * * * *', async () => {
+    logger.info('Running pin discovery worker...');
+    try {
+      await pinDiscoveryWorker.run();
+    } catch (error) {
+      logger.error('Pin discovery worker failed:', error);
+    }
+  });
 
   // MongoDB Validator - Every 30 minutes
   cron.schedule('*/30 * * * *', async () => {
