@@ -67,6 +67,7 @@
               <th>Supernode</th>
               <th>Retries</th>
               <th>Actions</th>
+              <th>Migrate</th>
             </tr>
           </thead>
           <tbody>
@@ -89,11 +90,18 @@
                       <button class="btn btn-sm btn-danger unpin-btn" data-cid="<%= pin.cid %>" onclick="unpinCID('<%= pin.cid %>')" <%= pin.migrated ? '' : 'disabled' %>>Unpin</button>
                     <% } %>
                   </td>
+                  <td>
+                    <% if (!pin.migrated && !pin.unpinned) { %>
+                      <button class="btn btn-sm btn-primary migrate-btn" data-cid="<%= pin.cid %>" onclick="migratePin('<%= pin.cid %>')" style="display: <%= isAuthenticated ? 'inline-block' : 'none' %>;">Migrate</button>
+                    <% } else if (pin.migrated) { %>
+                      <span style="color: #22c55e;">✓ Migrated</span>
+                    <% } %>
+                  </td>
                 </tr>
               <% }); %>
             <% } else { %>
               <tr>
-                <td colspan="7" class="text-center">No pins found</td>
+                <td colspan="8" class="text-center">No pins found</td>
               </tr>
             <% } %>
           </tbody>
@@ -461,6 +469,49 @@
         btn.textContent = 'Run GC';
       }
     });
+
+    // Manual migration button handler
+    async function migratePin(cid) {
+      if (!confirm(`Manually migrate this pin to the supernode?\n\nCID: ${cid}\n\nThis will attempt to pin it to the supernode immediately.`)) {
+        return;
+      }
+      
+      const row = document.querySelector(`tr[data-cid="${cid}"]`);
+      const migrateBtn = row.querySelector('.migrate-btn');
+      
+      if (migrateBtn) {
+        migrateBtn.disabled = true;
+        migrateBtn.textContent = 'Migrating...';
+      }
+      
+      try {
+        const response = await fetch('/api/pins/migrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cid })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          showNotification('✓ ' + (data.message || 'Pin migrated successfully!'), 'success');
+          setTimeout(() => location.reload(), 1500);
+        } else {
+          const errorMsg = data.message || data.error || 'Unknown error occurred';
+          showNotification('✗ Migration failed: ' + errorMsg, 'error');
+          if (migrateBtn) {
+            migrateBtn.disabled = false;
+            migrateBtn.textContent = 'Migrate';
+          }
+        }
+      } catch (error) {
+        showNotification('✗ Network error: ' + error.message, 'error');
+        if (migrateBtn) {
+          migrateBtn.disabled = false;
+          migrateBtn.textContent = 'Migrate';
+        }
+      }
+    }
   </script>
 </body>
 </html>
