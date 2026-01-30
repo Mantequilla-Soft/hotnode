@@ -74,7 +74,7 @@
             <% if (pins && pins.length > 0) { %>
               <% pins.forEach(pin => { %>
                 <tr data-cid="<%= pin.cid %>">
-                  <td><code class="cid" title="<%= pin.cid %>"><%= pin.cid.substring(0, 20) %>...</code></td>
+                  <td><code class="cid" style="word-break: break-all;"><%= pin.cid %></code></td>
                   <td><span class="badge badge-<%= pin.status %>"><%= pin.status %></span></td>
                   <td><%= pin.size_bytes ? (pin.size_bytes / (1024 * 1024)).toFixed(2) + ' MB' : 'N/A' %></td>
                   <td><%= new Date(pin.added_at).toLocaleString() %></td>
