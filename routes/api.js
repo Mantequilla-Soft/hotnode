@@ -533,7 +533,8 @@ router.post('/pins/migrate', requireAuth, async (req, res) => {
         });
       } else {
         // Pin doesn't exist, add it to supernode
-        await worker.pinToSupernode(cid);
+        logger.info(`Manual migration: ${cid} (${(pin.size_bytes / (1024 * 1024)).toFixed(2)}MB)`);
+        await worker.pinToSupernode(cid, pin.size_bytes);
         
         // Wait a moment for pin to propagate
         await worker.sleep(2000);

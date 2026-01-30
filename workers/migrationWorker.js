@@ -27,9 +27,14 @@ class MigrationWorker {
 
   /**
    * Pin a CID to supernode
+   * @param {string} cid - Content identifier to pin
+   * @param {number} sizeBytes - File size in bytes (for timeout calculation)
    */
-  async pinToSupernode(cid) {
+  async pinToSupernode(cid, sizeBytes = null) {
     try {
+      // Calculate dynamic timeout based on file size
+      const timeout = this.calculateTimeout(sizeBytes);
+      
       // Pin to supernode
       const response = await axios.post(
         `${this.supernodeAPI}/api/v0/pin/add`,
@@ -39,7 +44,7 @@ class MigrationWorker {
             arg: cid,
             recursive: true
           },
-          timeout: config.supernode.timeout_ms || 30000
+          timeout
         }
       );
 
@@ -75,6 +80,35 @@ class MigrationWorker {
       logger.error(`Supernode verification failed for ${cid}:`, error.message);
       return false;
     }
+  }
+
+  /**
+   * Calculate dynamic timeout based on file size
+   * Base timeout + additional time per MB
+   * @param {number} sizeBytes - File size in bytes
+   * @returns {number} - Timeout in milliseconds
+   */
+  calculateTimeout(sizeBytes) {
+    const baseTimeout = 30000; // 30 seconds base
+    
+    if (!sizeBytes || sizeBytes <= 0) {
+      return baseTimeout;
+    }
+    
+    const mbSize = sizeBytes / (1024 * 1024);
+    
+    // Add 10 seconds per 100MB
+    const additionalTimeout = Math.ceil(mbSize / 100) * 10000;
+    
+    // Cap at 10 minutes for very large files
+    const maxTimeout = 600000;
+    
+    const calculatedTimeout = baseTimeout + additionalTimeout;
+    const finalTimeout = Math.min(calculatedTimeout, maxTimeout);
+    
+    logger.info(`Calculated timeout for ${mbSize.toFixed(2)}MB: ${finalTimeout}ms`);
+    
+    return finalTimeout;
   }
 
   /**
@@ -127,7 +161,8 @@ class MigrationWorker {
             logger.info(`✓ Marked as migrated (already existed): ${pin.cid}`);
           } else {
             // Pin doesn't exist, add it to supernode
-            await this.pinToSupernode(pin.cid);
+            logger.info(`Migrating ${pin.cid}: ${(pin.size_bytes / (1024 * 1024)).toFixed(2)}MB`);
+            await this.pinToSupernode(pin.cid, pin.size_bytes);
 
             // Wait a moment for pin to propagate
             await this.sleep(2000);

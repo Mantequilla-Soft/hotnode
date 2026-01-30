@@ -235,3 +235,70 @@ Functionality:
 - Supernode experiencing temporary issues
 - Priority pins that need immediate migration
 - Testing/debugging migration for specific CIDs
+
+---
+
+# Dynamic Timeout for Large File Migrations - January 29, 2026
+
+## Problem Identified
+Migration timeout was static at 30 seconds regardless of file size. This caused premature timeouts for large files:
+- 20 MB file: 30 seconds might be adequate
+- 1 GB file: 30 seconds would almost certainly timeout
+
+The supernode needs time to:
+1. Receive the pin request
+2. Fetch content from IPFS network (if not cached)
+3. Process and validate the content
+4. Pin the content locally
+5. Return success response
+
+## Solution: Size-Based Dynamic Timeout
+
+### Implementation
+**File:** `workers/migrationWorker.js`
+
+```javascript
+calculateTimeout(sizeBytes) {
+  const baseTimeout = 30000;  // 30 seconds base
+  const mbSize = sizeBytes / (1024 * 1024);
+  
+  // Add 10 seconds per 100MB
+  const additionalTimeout = Math.ceil(mbSize / 100) * 10000;
+  
+  // Cap at 10 minutes maximum
+  const maxTimeout = 600000;
+  
+  return Math.min(baseTimeout + additionalTimeout, maxTimeout);
+}
+```
+
+### Timeout Examples
+| File Size | Timeout |
+|-----------|--------|
+| 10 MB | 30 seconds |
+| 100 MB | 40 seconds |
+| 500 MB | 80 seconds |
+| 1 GB | 130 seconds (2m 10s) |
+| 5 GB | 530 seconds (8m 50s) |
+| 10+ GB | 600 seconds (10m max) |
+
+### Files Modified
+- `workers/migrationWorker.js`
+  - Added `calculateTimeout()` method
+  - Updated `pinToSupernode()` to accept size parameter
+  - Updated `migratePins()` to pass pin size
+- `routes/api.js`
+  - Updated manual migration endpoint to pass pin size
+
+### Benefits
+- Prevents premature timeouts on large files
+- Maintains fast timeouts for small files
+- More reliable migration process
+- Better success rate for GB+ sized files
+
+### Logging
+Now logs calculated timeout for each migration:
+```
+Calculated timeout for 1024.50MB: 130000ms
+Migrating QmXXX: 1024.50MB
+```
