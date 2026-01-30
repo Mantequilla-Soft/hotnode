@@ -33,3 +33,6 @@ Thumbs.db
 temp/
 tmp/
 *.tmp
+
+# Internal documentation
+internal-docs/

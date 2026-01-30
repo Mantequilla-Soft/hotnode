@@ -178,3 +178,60 @@ Two critical gaps in automation were identified and resolved:
 2. **Zero stats** due to missing nginx logging → Fixed nginx config and log parsing
 
 The hot node system is now fully automated and properly tracking all metrics.
+
+---
+
+# Manual Migration Feature - January 29, 2026
+
+## Problem
+Migration worker was processing pins too slowly - only 23 out of 400 pins migrated. When system is under load or supernode is slow, automatic migration can fall behind significantly.
+
+## Solution: Manual Migration Button
+Added ability for admins to manually trigger migration of individual pins from the Pins page.
+
+### Implementation
+
+**1. New API Endpoint** (`routes/api.js`)
+```javascript
+POST /api/pins/migrate
+Body: { "cid": "QmXXX..." }
+```
+
+Functionality:
+- Checks if pin is already on supernode (fast path)
+- If not found, pins to supernode
+- Waits 2 seconds for propagation
+- Verifies successful pinning
+- Updates database with migration status
+- Tracks retry counts on failures
+
+**2. UI Updates** (`views/pins.ejs`)
+- Added "Migrate" column to pins table
+- "Migrate" button shown for non-migrated pins (auth required)
+- Shows "✓ Migrated" status for completed pins
+- Confirmation dialog before migration
+- Real-time progress feedback
+
+**3. User Flow**
+1. Admin views Pins page
+2. Clicks "Migrate" button on any unmigrated pin
+3. Confirms the action
+4. Button shows "Migrating..." progress
+5. Success/error message displayed
+6. Page reloads to show updated status
+
+### Files Modified
+- `routes/api.js` - Implemented `/api/pins/migrate` endpoint
+- `views/pins.ejs` - Added Migrate column and button handler
+
+### Benefits
+- Allows manual intervention when automatic migration is slow
+- Helps catch up on migration backlog quickly
+- Provides immediate feedback on migration attempts
+- No need to wait for the 12-hour automatic cycle
+
+### Use Cases
+- Migration worker falling behind
+- Supernode experiencing temporary issues
+- Priority pins that need immediate migration
+- Testing/debugging migration for specific CIDs
