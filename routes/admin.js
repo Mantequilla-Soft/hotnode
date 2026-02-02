@@ -140,14 +140,24 @@ router.get('/settings', async (req, res) => {
     const db = getDatabase();
     
     // Get all configuration
-    const configRows = await db.getAllConfig();
-    const configMap = {};
-    configRows.forEach(row => {
-      configMap[row.key] = row.value;
-    });
+    let configRows = [];
+    let configMap = {};
+    try {
+      configRows = await db.getAllConfig();
+      configRows.forEach(row => {
+        configMap[row.key] = row.value;
+      });
+    } catch (error) {
+      logger.error('Failed to load config:', error);
+    }
     
     // Get GC logs
-    const gcLogs = await db.getRecentGCLogs(10);
+    let gcLogs = [];
+    try {
+      gcLogs = await db.getRecentGCLogs(10);
+    } catch (error) {
+      logger.error('Failed to load GC logs:', error);
+    }
     
     res.render('settings', {
       config: configMap,
@@ -157,7 +167,7 @@ router.get('/settings', async (req, res) => {
     });
   } catch (error) {
     logger.error('Settings page error:', error);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
+    res.status(500).json({ error: 'Internal server error', details: error.message, stack: error.stack });
   }
 });
 
