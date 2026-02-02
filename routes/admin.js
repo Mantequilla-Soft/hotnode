@@ -141,11 +141,11 @@ router.get('/settings', async (req, res) => {
     
     // Get all configuration
     let configRows = [];
-    let configMap = {};
+    let dbConfig = {};
     try {
       configRows = await db.getAllConfig();
       configRows.forEach(row => {
-        configMap[row.key] = row.value;
+        dbConfig[row.key] = row.value;
       });
     } catch (error) {
       logger.error('Failed to load config:', error);
@@ -160,9 +160,8 @@ router.get('/settings', async (req, res) => {
     }
     
     res.render('settings', {
-      config: configMap,
+      dbConfig,
       gcLogs,
-      appConfig: config,
       isAuthenticated: req.session.authenticated || false
     });
   } catch (error) {

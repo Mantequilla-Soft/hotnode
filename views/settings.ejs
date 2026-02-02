@@ -38,7 +38,7 @@
       <form id="discordForm">
         <div class="form-group">
           <label>Webhook URL:</label>
-          <input type="url" id="discordWebhook" value="<%= config.discord_webhook || '' %>" placeholder="https://discord.com/api/webhooks/...">
+          <input type="url" id="discordWebhook" value="<%= dbConfig.discord_webhook || '' %>" placeholder="https://discord.com/api/webhooks/...">
         </div>
         <button type="submit" class="btn btn-primary">Save</button>
         <button type="button" class="btn btn-secondary" onclick="testDiscord()">Test</button>
@@ -103,23 +103,23 @@
       <div class="config-list">
         <div class="config-item">
           <strong>Hot Node Name:</strong>
-          <span><%= appConfig.hotnode.name %></span>
+          <span><%= config.hotnode.name %></span>
         </div>
         <div class="config-item">
           <strong>IPFS API:</strong>
-          <span><%= appConfig.hotnode.ipfs_api %></span>
+          <span><%= config.hotnode.ipfs_api %></span>
         </div>
         <div class="config-item">
           <strong>Migration Start:</strong>
-          <span><%= appConfig.migration.start_after_days %> days</span>
+          <span><%= config.migration.start_after_days %> days</span>
         </div>
         <div class="config-item">
           <strong>Delete After:</strong>
-          <span><%= appConfig.migration.delete_after_days %> days</span>
+          <span><%= config.migration.delete_after_days %> days</span>
         </div>
         <div class="config-item">
           <strong>Migration Batch Size:</strong>
-          <span><%= appConfig.migration.batch_size %></span>
+          <span><%= config.migration.batch_size %></span>
         </div>
       </div>
       <p class="text-muted">To modify these settings, edit .env and restart the service.</p>
