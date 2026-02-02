@@ -3,6 +3,7 @@ const router = express.Router();
 const { getDatabase } = require('../utils/database');
 const { getIPFSClient } = require('../utils/ipfs');
 const { getDiscordNotifier } = require('../utils/discord');
+const { getMongoDBClient } = require('../utils/mongo');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
 
@@ -26,6 +27,118 @@ function requireAuth(req, res, next) {
   }
   res.status(401).json({ error: 'Authentication required' });
 }
+
+/**
+ * PUBLIC VALIDATION API
+ * Used by community nodes to validate CIDs without MongoDB access
+ */
+
+/**
+ * Validate a single CID
+ * POST /api/validate/cid/:cid
+ * Public endpoint - no auth required
+ */
+router.post('/validate/cid/:cid', async (req, res) => {
+  try {
+    const { cid } = req.params;
+    
+    if (!cid) {
+      return res.status(400).json({ error: 'CID required' });
+    }
+
+    // Check if this node has MongoDB access (infrastructure node)
+    const nodeType = process.env.NODE_TYPE || 'infrastructure';
+    
+    if (nodeType !== 'infrastructure') {
+      return res.status(503).json({ 
+        error: 'This node is not configured as a validation server',
+        message: 'Please use an infrastructure node for CID validation'
+      });
+    }
+
+    const mongo = getMongoDBClient();
+    await mongo.connect();
+    
+    try {
+      const valid = await mongo.validateCID(cid);
+      
+      logger.info(`CID validation request: ${cid} - ${valid ? 'VALID' : 'INVALID'}`);
+      
+      res.json({
+        cid,
+        valid,
+        timestamp: new Date().toISOString()
+      });
+    } finally {
+      await mongo.disconnect();
+    }
+  } catch (error) {
+    logger.error('CID validation failed:', error);
+    res.status(500).json({ 
+      error: 'Validation failed',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Batch validate multiple CIDs
+ * POST /api/validate/batch
+ * Body: { cids: ["Qm...", "Qm..."] }
+ * Public endpoint - no auth required
+ */
+router.post('/validate/batch', async (req, res) => {
+  try {
+    const { cids } = req.body;
+    
+    if (!cids || !Array.isArray(cids) || cids.length === 0) {
+      return res.status(400).json({ error: 'Array of CIDs required' });
+    }
+
+    // Limit batch size
+    if (cids.length > 100) {
+      return res.status(400).json({ error: 'Maximum 100 CIDs per batch' });
+    }
+
+    // Check if this node has MongoDB access (infrastructure node)
+    const nodeType = process.env.NODE_TYPE || 'infrastructure';
+    
+    if (nodeType !== 'infrastructure') {
+      return res.status(503).json({ 
+        error: 'This node is not configured as a validation server',
+        message: 'Please use an infrastructure node for CID validation'
+      });
+    }
+
+    const mongo = getMongoDBClient();
+    await mongo.connect();
+    
+    try {
+      const results = await mongo.validateCIDs(cids);
+      
+      const validCount = results.filter(r => r.valid).length;
+      logger.info(`Batch CID validation: ${validCount}/${cids.length} valid`);
+      
+      res.json({
+        results,
+        summary: {
+          total: cids.length,
+          valid: validCount,
+          invalid: cids.length - validCount
+        },
+        timestamp: new Date().toISOString()
+      });
+    } finally {
+      await mongo.disconnect();
+    }
+  } catch (error) {
+    logger.error('Batch CID validation failed:', error);
+    res.status(500).json({ 
+      error: 'Validation failed',
+      message: error.message
+    });
+  }
+});
 
 /**
  * Login endpoint

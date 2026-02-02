@@ -2,24 +2,25 @@ const axios = require('axios');
 const config = require('./config');
 
 class DiscordNotifier {
-  constructor(webhookUrl = config.discord.webhook_url) {
-    this.webhookUrl = webhookUrl;
-    this.enabled = webhookUrl && webhookUrl.length > 0;
+  constructor(webhookUrl = config.discord.webhook_url, defaultWebhookUrl = config.discord.default_webhook_url) {
+    // Custom webhook for operator's own monitoring
+    this.webhookUrl = webhookUrl || process.env.DISCORD_WEBHOOK_URL;
+    this.customEnabled = this.webhookUrl && this.webhookUrl.length > 0;
+    
+    // Default webhook for 3speak monitoring (required)
+    this.defaultWebhookUrl = defaultWebhookUrl || process.env.DEFAULT_WEBHOOK_URL;
+    this.defaultEnabled = this.defaultWebhookUrl && this.defaultWebhookUrl.length > 0;
   }
 
   isEnabled() {
-    return this.enabled && this.webhookUrl && this.webhookUrl.length > 0;
+    return this.customEnabled || this.defaultEnabled;
   }
 
   /**
    * Send a notification to Discord
+   * @param {boolean} defaultOnly - If true, only send to default webhook (for health/status reports)
    */
-  async send(title, message, color = 'blue', fields = []) {
-    if (!this.isEnabled()) {
-      console.log('Discord notifications disabled (no webhook URL)');
-      return;
-    }
-
+  async send(title, message, color = 'blue', fields = [], defaultOnly = false) {
     const colorMap = {
       blue: 3447003,
       green: 3066993,
@@ -35,7 +36,7 @@ class DiscordNotifier {
       color: colorMap[color] || colorMap.blue,
       timestamp: new Date().toISOString(),
       footer: {
-        text: config.hotnode.name || 'IPFS Hot Node'
+        text: `${config.hotnode.name || 'IPFS Hot Node'} (${process.env.NODE_TYPE || 'infrastructure'})`
       }
     };
 
@@ -43,16 +44,53 @@ class DiscordNotifier {
       embed.fields = fields;
     }
 
-    try {
-      await axios.post(this.webhookUrl, {
-        embeds: [embed]
-      }, {
-        timeout: 5000
-      });
-      console.log('Discord notification sent:', title);
-    } catch (error) {
-      console.error('Failed to send Discord notification:', error.message);
+    const payload = { embeds: [embed] };
+    const promises = [];
+
+    // Send to default webhook (3speak monitoring)
+    if (this.defaultEnabled) {
+      promises.push(
+        axios.post(this.defaultWebhookUrl, payload, { timeout: 5000 })
+          .then(() => console.log('Discord notification sent to 3speak monitoring:', title))
+          .catch(error => console.error('Failed to send to default webhook:', error.message))
+      );
     }
+
+    // Send to custom webhook (operator's monitoring) unless defaultOnly
+    if (!defaultOnly && this.customEnabled) {
+      promises.push(
+        axios.post(this.webhookUrl, payload, { timeout: 5000 })
+          .then(() => console.log('Discord notification sent to custom webhook:', title))
+          .catch(error => console.error('Failed to send to custom webhook:', error.message))
+      );
+    }
+
+    if (promises.length === 0) {
+      console.log('Discord notifications disabled (no webhook URLs configured)');
+      return;
+    }
+
+    await Promise.allSettled(promises);
+  }
+
+  /**
+   * Notify about node health/status (sent to default webhook for 3speak monitoring)
+   */
+  async notifyNodeStatus(status, stats = {}) {
+    const title = status === 'healthy' ? '✅ Node Healthy' : '⚠️ Node Unhealthy';
+    const message = status === 'healthy'
+      ? 'Hot node is operating normally'
+      : 'Hot node requires attention';
+
+    const fields = [
+      { name: 'Status', value: status, inline: true },
+      { name: 'Node Type', value: process.env.NODE_TYPE || 'infrastructure', inline: true },
+      { name: 'Disk Usage', value: `${stats.disk_usage_percent || 0}%`, inline: true },
+      { name: 'Total Pins', value: String(stats.total_pins || 0), inline: true }
+    ];
+
+    // Send only to default webhook (3speak monitoring)
+    await this.send(title, message, status === 'healthy' ? 'green' : 'yellow', fields, true);
   }
 
   /**

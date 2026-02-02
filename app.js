@@ -16,6 +16,7 @@ const migrationWorker = require('./workers/migrationWorker');
 const cleanupWorker = require('./workers/cleanupWorker');
 const statsAggregator = require('./workers/statsAggregator');
 const pinDiscoveryWorker = require('./workers/pinDiscoveryWorker');
+const healthReporter = require('./workers/healthReporter');
 
 // Import routes
 const healthRoutes = require('./routes/health');
@@ -144,6 +145,16 @@ function scheduleWorkers() {
       await statsAggregator.run();
     } catch (error) {
       logger.error('Stats aggregator worker failed:', error);
+    }
+  });
+
+  // Health Reporter - Every 6 hours
+  cron.schedule('0 */6 * * *', async () => {
+    logger.info('Running health reporter worker...');
+    try {
+      await healthReporter.run();
+    } catch (error) {
+      logger.error('Health reporter worker failed:', error);
     }
   });
 
