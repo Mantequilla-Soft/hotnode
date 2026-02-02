@@ -667,9 +667,9 @@ EOF
     # Add common configuration
     cat >> "$INSTALL_DIR/.env" <<EOF
 # Discord Notifications
-# Default webhook reports to 3speak monitoring (required)
-DEFAULT_WEBHOOK_URL=https://discord.com/api/webhooks/1461861425520574544/oQV9HiUmInPhMvfrGWoHxEZb27XWXXkzNH6ppBiNJUFHH1D9ASat4hgW_aWR2v6fTJez
-# Custom webhook for your own monitoring (optional)
+# DEFAULT_WEBHOOK_URL: Reports to 3speak monitoring (REQUIRED - contact 3speak for URL)
+# DISCORD_WEBHOOK_URL: Your own custom webhook (optional)
+DEFAULT_WEBHOOK_URL=
 DISCORD_WEBHOOK_URL=
 
 # Nginx Logs

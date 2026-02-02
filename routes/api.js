@@ -60,7 +60,9 @@ router.post('/validate/cid/:cid', async (req, res) => {
     await mongo.connect();
     
     try {
-      const valid = await mongo.validateCID(cid);
+      // Use batch validation method for efficiency (even for single CID)
+      const results = await mongo.validateCIDs([cid]);
+      const valid = results[0]?.valid || false;
       
       logger.info(`CID validation request: ${cid} - ${valid ? 'VALID' : 'INVALID'}`);
       
