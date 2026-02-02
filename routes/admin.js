@@ -152,11 +152,12 @@ router.get('/settings', async (req, res) => {
     res.render('settings', {
       config: configMap,
       gcLogs,
-      appConfig: config
+      appConfig: config,
+      isAuthenticated: req.session.authenticated || false
     });
   } catch (error) {
     logger.error('Settings page error:', error);
-    res.status(500).send('Error loading settings: ' + error.message);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
