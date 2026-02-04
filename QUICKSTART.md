@@ -21,7 +21,7 @@ nano .env
 
 **Minimum required changes:**
 - `ADMIN_PASSWORD` → Your secure admin password
-- `SUPERNODE_API` → Supernode IPFS API (default: http://65.21.201.94:5002)
+- `SUPERNODE_API` → Supernode IPFS API (required: https://ipfs.3speak.tv)
 - `HOTNODE_NAME` → Unique name like "HotNode-Dev"
 
 ### 3. Initialize Database

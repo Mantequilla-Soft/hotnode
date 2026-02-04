@@ -276,6 +276,45 @@ install_ipfs() {
     log_info "IPFS installed: $(ipfs --version)"
 }
 
+detect_storage_size() {
+    # Detect available disk space and recommend storage allocation
+    # Uses 85% of available space as default, ensuring some headroom
+    
+    local mount_point="/home/$IPFS_USER"
+    local available_kb
+    local available_gb
+    local recommended_gb
+    local storage_max
+    
+    # Get available space in KB
+    available_kb=$(df "$mount_point" | tail -1 | awk '{print $4}')
+    
+    # Convert to GB (1 GB = 1048576 KB)
+    available_gb=$((available_kb / 1048576))
+    
+    # Calculate 85% of available space
+    recommended_gb=$((available_gb * 85 / 100))
+    
+    # Round down to nearest 10GB for cleaner numbers
+    recommended_gb=$((recommended_gb / 10 * 10))
+    
+    # Ensure minimum of 100GB
+    if [ "$recommended_gb" -lt 100 ]; then
+        recommended_gb=100
+        log_warn "Available disk space is less than recommended (119GB+)"
+    fi
+    
+    # Set storage max with appropriate unit
+    if [ "$recommended_gb" -ge 1024 ]; then
+        storage_max="$((recommended_gb / 1024))TB"
+    else
+        storage_max="${recommended_gb}GB"
+    fi
+    
+    log_info "Detected storage: ~${available_gb}GB available → Setting StorageMax to ${storage_max} (85% allocation)"
+    echo "$storage_max"
+}
+
 configure_ipfs() {
     log_info "Configuring IPFS..."
     
@@ -289,7 +328,10 @@ configure_ipfs() {
     # Configure IPFS settings
     su - $IPFS_USER -c "ipfs config Addresses.API /ip4/127.0.0.1/tcp/5001"
     su - $IPFS_USER -c "ipfs config Addresses.Gateway /ip4/127.0.0.1/tcp/8080"
-    su - $IPFS_USER -c "ipfs config --json Datastore.StorageMax '\"500GB\"'"
+    
+    # Auto-detect storage size and configure
+    STORAGE_MAX=$(detect_storage_size)
+    su - $IPFS_USER -c "ipfs config --json Datastore.StorageMax '\"${STORAGE_MAX}\"'"
     
     log_info "IPFS configured"
 }
@@ -633,7 +675,7 @@ IPFS_GATEWAY_URL=http://127.0.0.1:8080
 NODE_TYPE=${NODE_TYPE}
 
 # Supernode Configuration
-SUPERNODE_API=http://65.21.201.94:5002
+SUPERNODE_API=https://ipfs.3speak.tv
 SUPERNODE_TIMEOUT_MS=30000
 
 EOF

@@ -90,7 +90,7 @@ Copy `.env.example` to `.env` and configure:
 ```bash
 # Required
 ADMIN_PASSWORD=your_secure_password_here
-SUPERNODE_API=http://65.21.201.94:5002
+SUPERNODE_API=https://ipfs.3speak.tv
 
 # Optional
 MONGODB_URI=mongodb://username:password@host:port/database

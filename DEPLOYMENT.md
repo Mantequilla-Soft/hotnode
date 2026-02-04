@@ -57,7 +57,7 @@ ADMIN_PASSWORD=your_secure_password_here
 
 2. **Supernode API** - Set the supernode URL:
 ```bash
-SUPERNODE_API=http://65.21.201.94:5002
+SUPERNODE_API=https://ipfs.3speak.tv
 ```
 
 3. **Hot Node Name** - Set a unique identifier:

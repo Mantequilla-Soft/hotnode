@@ -47,7 +47,7 @@ const config = {
   },
   
   supernode: {
-    api: optional('SUPERNODE_API', 'http://65.21.201.94:5002'),
+    api: required('SUPERNODE_API'),
     verify_endpoint: '/api/v0/pin/ls',
     timeout_ms: optionalInt('SUPERNODE_TIMEOUT_MS', 30000)
   },

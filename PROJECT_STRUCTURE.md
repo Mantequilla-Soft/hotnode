@@ -160,7 +160,7 @@ IPFS_API=http://127.0.0.1:5001      # Local IPFS API URL
 IPFS_GATEWAY=http://127.0.0.1:8080  # Local IPFS gateway URL
 
 # Supernode Configuration
-SUPERNODE_API=http://65.21.201.94:5002  # Supernode IPFS API
+SUPERNODE_API=https://ipfs.3speak.tv  # Supernode IPFS API
 
 # MongoDB Configuration
 MONGODB_URI=mongodb://localhost:27017/trafficdirector
