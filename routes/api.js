@@ -626,76 +626,69 @@ router.post('/pins/migrate', requireAuth, async (req, res) => {
     
     logger.info(`Manual migration triggered for ${cid}`);
     
-    // Attempt migration
-    try {
-      // First, check if pin already exists on supernode
-      const alreadyPinned = await worker.verifySupernodePin(cid);
-      
-      if (alreadyPinned) {
-        // Pin already exists on supernode, just mark as migrated
-        logger.info(`Pin already exists on supernode: ${cid}`);
+    // Respond immediately and process in background
+    res.json({ 
+      success: true, 
+      cid,
+      message: 'Migration started in background. Check pin status in a few moments.'
+    });
+    
+    // Process migration in background (don't await)
+    setImmediate(async () => {
+      try {
+        // First, check if pin already exists on supernode
+        const alreadyPinned = await worker.verifySupernodePin(cid);
         
-        await db.updatePin(cid, {
-          migrated: 1,
-          migrated_at: new Date().toISOString(),
-          notes: 'Already pinned on supernode (manual check)'
-        });
-        
-        return res.json({ 
-          success: true, 
-          cid,
-          message: 'Pin already existed on supernode and has been marked as migrated'
-        });
-      } else {
-        // Pin doesn't exist, add it to supernode
-        logger.info(`Manual migration: ${cid} (${(pin.size_bytes / (1024 * 1024)).toFixed(2)}MB)`);
-        await worker.pinToSupernode(cid, pin.size_bytes);
-        
-        // Wait a moment for pin to propagate
-        await worker.sleep(2000);
-        
-        // Verify pin exists on supernode
-        const verified = await worker.verifySupernodePin(cid);
-        
-        if (verified) {
-          // Update database
+        if (alreadyPinned) {
+          // Pin already exists on supernode, just mark as migrated
+          logger.info(`Pin already exists on supernode: ${cid}`);
+          
           await db.updatePin(cid, {
             migrated: 1,
             migrated_at: new Date().toISOString(),
-            notes: 'Manually migrated'
+            notes: 'Already pinned on supernode (manual check)'
           });
           
-          logger.info(`✓ Successfully migrated manually: ${cid}`);
-          
-          return res.json({ 
-            success: true, 
-            cid,
-            message: 'Pin successfully migrated to supernode'
-          });
+          logger.info(`✓ Marked as migrated (already existed): ${cid}`);
         } else {
-          throw new Error('Supernode verification failed after pinning');
+          // Pin doesn't exist, add it to supernode
+          logger.info(`Migrating: ${cid} (${(pin.size_bytes / (1024 * 1024)).toFixed(2)}MB)`);
+          await worker.pinToSupernode(cid, pin.size_bytes);
+          
+          // Wait a moment for pin to propagate
+          await worker.sleep(2000);
+          
+          // Verify pin exists on supernode
+          const verified = await worker.verifySupernodePin(cid);
+          
+          if (verified) {
+            // Update database
+            await db.updatePin(cid, {
+              migrated: 1,
+              migrated_at: new Date().toISOString(),
+              notes: 'Manually migrated'
+            });
+            
+            logger.info(`✓ Successfully migrated manually: ${cid}`);
+          } else {
+            throw new Error('Supernode verification failed after pinning');
+          }
         }
+      } catch (migrationError) {
+        // Update retry count
+        const newRetryCount = (pin.retry_count || 0) + 1;
+        await db.updatePin(cid, {
+          retry_count: newRetryCount,
+          last_retry_at: new Date().toISOString(),
+          notes: `Manual migration failed: ${migrationError.message}`
+        });
+        
+        logger.error(`✗ Manual migration failed for ${cid}:`, migrationError.message);
       }
-    } catch (migrationError) {
-      // Update retry count
-      const newRetryCount = (pin.retry_count || 0) + 1;
-      await db.updatePin(cid, {
-        retry_count: newRetryCount,
-        last_retry_at: new Date().toISOString(),
-        notes: `Manual migration failed: ${migrationError.message}`
-      });
-      
-      logger.error(`✗ Manual migration failed for ${cid}:`, migrationError.message);
-      
-      return res.status(500).json({ 
-        error: 'Migration failed', 
-        message: migrationError.message,
-        cid
-      });
-    }
+    });
   } catch (error) {
-    logger.error('Failed to migrate pin:', error);
-    res.status(500).json({ error: 'Failed to migrate pin', message: error.message });
+    logger.error('Failed to start migration:', error);
+    res.status(500).json({ error: 'Failed to start migration', message: error.message });
   }
 });
 
