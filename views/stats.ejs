@@ -145,50 +145,7 @@
       </div>
     </div>
 
-    <!-- Bandwidth Chart (existing) -->
-    <div class="card">
-      <h3>📈 Bandwidth Usage</h3>
-      <div style="margin-bottom: 1rem;">
-        <a href="/stats?period=hourly" class="btn <%= period === 'hourly' ? 'btn-primary' : 'btn-secondary' %> btn-sm">Hourly</a>
-        <a href="/stats?period=daily" class="btn <%= period === 'daily' ? 'btn-primary' : 'btn-secondary' %> btn-sm">Daily</a>
-        <a href="/stats?period=weekly" class="btn <%= period === 'weekly' ? 'btn-primary' : 'btn-secondary' %> btn-sm">Weekly</a>
-        <a href="/stats?period=monthly" class="btn <%= period === 'monthly' ? 'btn-primary' : 'btn-secondary' %> btn-sm">Monthly</a>
-      </div>
-      <canvas id="bandwidthChart"></canvas>
-    </div>
 
-    <!-- Detailed Stats Table (existing) -->
-    <div class="card">
-      <h3>Detailed Traffic Stats</h3>
-      <div class="table-responsive">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Bytes In</th>
-              <th>Bytes Out</th>
-              <th>Requests</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if (stats && stats.length > 0) { %>
-              <% stats.forEach(stat => { %>
-                <tr>
-                  <td><%= new Date(stat.timestamp).toLocaleString() %></td>
-                  <td><%= (stat.bytes_in / (1024 * 1024)).toFixed(2) %> MB</td>
-                  <td><%= (stat.bytes_out / (1024 * 1024)).toFixed(2) %> MB</td>
-                  <td><%= stat.requests_count || 0 %></td>
-                </tr>
-              <% }); %>
-            <% } else { %>
-              <tr>
-                <td colspan="4" class="text-center">No statistics available</td>
-              </tr>
-            <% } %>
-          </tbody>
-        </table>
-      </div>
-    </div>
   </main>
 
   <footer>
@@ -307,51 +264,6 @@
       const i = Math.floor(Math.log(bytes) / Math.log(k));
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
-
-    // Existing bandwidth chart code - uses separate period (hourly/daily/weekly/monthly from URL)
-    const stats = <%= JSON.stringify(stats || []) %>;
-    const labels = stats.map(s => new Date(s.timestamp).toLocaleString());
-    const bytesIn = stats.map(s => s.bytes_in / (1024 * 1024));
-    const bytesOut = stats.map(s => s.bytes_out / (1024 * 1024));
-
-    const ctx = document.getElementById('bandwidthChart').getContext('2d');
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Bytes In (MB)',
-          data: bytesIn,
-          borderColor: 'rgb(75, 192, 192)',
-          backgroundColor: 'rgba(75, 192, 192, 0.2)',
-          tension: 0.1
-        }, {
-          label: 'Bytes Out (MB)',
-          data: bytesOut,
-          borderColor: 'rgb(255, 99, 132)',
-          backgroundColor: 'rgba(255, 99, 132, 0.2)',
-          tension: 0.1
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          title: {
-            display: true,
-            text: 'Bandwidth Usage Over Time'
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: 'MB'
-            }
-          }
-        }
-      }
-    });
   </script>
 </body>
 </html>

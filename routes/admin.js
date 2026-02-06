@@ -175,15 +175,15 @@ router.get('/settings', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const { period = 'hourly' } = req.query;
     const db = getDatabase();
     
-    // Get traffic stats
-    const stats = await db.getTrafficStats(period, 30);
-    
     res.render('stats', {
-      period,
-      stats
+      config: {
+        hotnode: {
+          name: process.env.HOTNODE_NAME || 'IPFS Hot Node'
+        }
+      },
+      isAuthenticated: req.session.authenticated || false
     });
   } catch (error) {
     logger.error('Stats page error:', error);
