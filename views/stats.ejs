@@ -220,8 +220,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="/js/main.js"></script>
   <script>
-    // State management
-    let currentPeriod = 7;
+    // State management - separate periods for different sections
+    let summaryPeriod = 7; // For the new stats (7/30/90 days)
     let summaryData = null;
 
     // Initialize on page load
@@ -229,12 +229,12 @@
       await loadSummaryData();
       updateDisplayedStats();
       
-      // Setup tab handlers
+      // Setup tab handlers for 7/30/90 day stats
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
           e.target.classList.add('active');
-          currentPeriod = parseInt(e.target.dataset.period);
+          summaryPeriod = parseInt(e.target.dataset.period);
           updateDisplayedStats();
         });
       });
@@ -247,48 +247,56 @@
         summaryData = await response.json();
       } catch (error) {
         console.error('Failed to load summary data:', error);
+        // Set empty data structure to prevent errors
+        summaryData = {
+          pins: { total: 0, migrated: 0 },
+          migration: { days_7: {}, days_30: {}, days_90: { success: 0, bytes_migrated: 0 } },
+          cleanup: { days_7: {}, days_30: {}, days_90: {} },
+          system: { cpu_avg: 0, cpu_max: 0, memory_avg: 0, disk_avg: 0 }
+        };
       }
     }
 
-    // Update displayed stats based on selected period
+    // Update displayed stats based on selected period (7/30/90 days)
     function updateDisplayedStats() {
       if (!summaryData) return;
 
-      const periodKey = `days_${currentPeriod}`;
+      const periodKey = `days_${summaryPeriod}`;
       
-      // Update summary cards (90-day stats)
-      document.getElementById('totalPins').textContent = summaryData.pins.total.toLocaleString();
-      document.getElementById('pinsServed').textContent = summaryData.pins.migrated.toLocaleString();
-      document.getElementById('bytesServed').textContent = formatBytes(summaryData.migration.days_90.bytes_migrated);
+      // Update summary cards (always use 90-day stats)
+      document.getElementById('totalPins').textContent = (summaryData.pins?.total || 0).toLocaleString();
+      document.getElementById('pinsServed').textContent = (summaryData.pins?.migrated || 0).toLocaleString();
+      document.getElementById('bytesServed').textContent = formatBytes(summaryData.migration?.days_90?.bytes_migrated || 0);
       
-      document.getElementById('migrated90').textContent = summaryData.migration.days_90.success.toLocaleString();
-      document.getElementById('migratedBytes').textContent = formatBytes(summaryData.migration.days_90.bytes_migrated);
+      document.getElementById('migrated90').textContent = (summaryData.migration?.days_90?.success || 0).toLocaleString();
+      document.getElementById('migratedBytes').textContent = formatBytes(summaryData.migration?.days_90?.bytes_migrated || 0);
       
-      const totalFreed = summaryData.cleanup.days_90.bytes_freed_invalid + 
-                         summaryData.cleanup.days_90.bytes_freed_migrated + 
-                         summaryData.cleanup.days_90.gc_bytes_freed;
+      const cleanup90 = summaryData.cleanup?.days_90 || {};
+      const totalFreed = (cleanup90.bytes_freed_invalid || 0) + 
+                         (cleanup90.bytes_freed_migrated || 0) + 
+                         (cleanup90.gc_bytes_freed || 0);
       document.getElementById('storageFreed').textContent = formatBytes(totalFreed);
       
-      // Update migration stats for selected period
-      const migration = summaryData.migration[periodKey];
-      document.getElementById('migrationSuccess').textContent = migration.success.toLocaleString();
-      document.getElementById('migrationFailures').textContent = migration.failures.toLocaleString();
-      document.getElementById('migrationMaxRetries').textContent = migration.max_retries.toLocaleString();
-      document.getElementById('migrationBytes').textContent = formatBytes(migration.bytes_migrated);
+      // Update migration stats for selected period (7/30/90)
+      const migration = summaryData.migration?.[periodKey] || {};
+      document.getElementById('migrationSuccess').textContent = (migration.success || 0).toLocaleString();
+      document.getElementById('migrationFailures').textContent = (migration.failures || 0).toLocaleString();
+      document.getElementById('migrationMaxRetries').textContent = (migration.max_retries || 0).toLocaleString();
+      document.getElementById('migrationBytes').textContent = formatBytes(migration.bytes_migrated || 0);
       
-      // Update cleanup stats for selected period
-      const cleanup = summaryData.cleanup[periodKey];
-      document.getElementById('cleanupInvalid').textContent = cleanup.invalid_removed.toLocaleString();
-      document.getElementById('cleanupMigrated').textContent = cleanup.migrated_unpinned.toLocaleString();
-      document.getElementById('gcRuns').textContent = cleanup.gc_runs.toLocaleString();
-      document.getElementById('gcFreed').textContent = formatBytes(cleanup.gc_bytes_freed);
+      // Update cleanup stats for selected period (7/30/90)
+      const cleanup = summaryData.cleanup?.[periodKey] || {};
+      document.getElementById('cleanupInvalid').textContent = (cleanup.invalid_removed || 0).toLocaleString();
+      document.getElementById('cleanupMigrated').textContent = (cleanup.migrated_unpinned || 0).toLocaleString();
+      document.getElementById('gcRuns').textContent = (cleanup.gc_runs || 0).toLocaleString();
+      document.getElementById('gcFreed').textContent = formatBytes(cleanup.gc_bytes_freed || 0);
       
       // Update system metrics
-      const system = summaryData.system;
-      document.getElementById('cpuAvg').textContent = system.cpu_avg.toFixed(1) + '%';
-      document.getElementById('cpuMax').textContent = system.cpu_max.toFixed(1) + '%';
-      document.getElementById('memoryAvg').textContent = system.memory_avg.toFixed(1) + '%';
-      document.getElementById('diskAvg').textContent = system.disk_avg.toFixed(1) + '%';
+      const system = summaryData.system || {};
+      document.getElementById('cpuAvg').textContent = (system.cpu_avg || 0).toFixed(1) + '%';
+      document.getElementById('cpuMax').textContent = (system.cpu_max || 0).toFixed(1) + '%';
+      document.getElementById('memoryAvg').textContent = (system.memory_avg || 0).toFixed(1) + '%';
+      document.getElementById('diskAvg').textContent = (system.disk_avg || 0).toFixed(1) + '%';
     }
 
     // Format bytes to human-readable format
@@ -300,7 +308,7 @@
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
-    // Existing bandwidth chart code
+    // Existing bandwidth chart code - uses separate period (hourly/daily/weekly/monthly from URL)
     const stats = <%= JSON.stringify(stats || []) %>;
     const labels = stats.map(s => new Date(s.timestamp).toLocaleString());
     const bytesIn = stats.map(s => s.bytes_in / (1024 * 1024));
