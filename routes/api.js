@@ -325,6 +325,36 @@ router.get('/pins', async (req, res) => {
 });
 
 /**
+ * Download overdue pins as text file
+ */
+router.get('/pins/overdue/download', async (req, res) => {
+  try {
+    const db = getDatabase();
+    
+    // Get overdue pins (older than 7 days and not migrated)
+    const sql = `
+      SELECT cid FROM pins 
+      WHERE julianday('now') - julianday(added_at) > 7 
+      AND migrated = 0
+      ORDER BY added_at ASC
+    `;
+    const pins = await db.all(sql);
+    
+    // Create text content with one CID per line
+    const textContent = pins.map(pin => pin.cid).join('\n');
+    
+    // Set headers for file download
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', `attachment; filename="overdue-pins-${new Date().toISOString().split('T')[0]}.txt"`);
+    
+    res.send(textContent);
+  } catch (error) {
+    logger.error('Failed to download overdue pins:', error);
+    res.status(500).json({ error: 'Failed to download overdue pins' });
+  }
+});
+
+/**
  * Get specific pin details
  */
 router.get('/pins/:cid', async (req, res) => {
