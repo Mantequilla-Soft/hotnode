@@ -240,7 +240,49 @@ class MigrationWorker {
       // Update last run time
       await this.db.setConfig('last_migration_run', new Date().toISOString());
       
-      // Log event
+      // Calculate total bytes migrated for today
+      const pins = await this.db.getValidPinsForMigration(this.startAfterDays, this.batchSize);
+      let bytesMigrated = 0;
+      let maxRetriesReached = 0;
+      
+      for (const pin of pins) {
+        if (pin.migrated) {
+          bytesMigrated += pin.size_bytes || 0;
+        }
+        if ((pin.retry_count || 0) >= this.maxRetries) {
+          maxRetriesReached++;
+        }
+      }
+      
+      // Update migration stats for today
+      const today = new Date().toISOString().split('T')[0];
+      await this.db.updateMigrationStats(today, {
+        success_count: result.succeeded,
+        failure_count: result.failed,
+        bytes_migrated: bytesMigrated,
+        max_retries_reached: maxRetriesReached
+      });
+      
+      // Log detailed events
+      if (result.succeeded > 0) {
+        await this.db.logEvent({
+          event_type: 'migration_success',
+          severity: 'info',
+          message: `Successfully migrated ${result.succeeded} pins (${(bytesMigrated / (1024 * 1024 * 1024)).toFixed(2)} GB)`,
+          metadata: { count: result.succeeded, bytes: bytesMigrated }
+        });
+      }
+      
+      if (result.failed > 0) {
+        await this.db.logEvent({
+          event_type: 'migration_failure',
+          severity: 'warning',
+          message: `Failed to migrate ${result.failed} pins`,
+          metadata: { count: result.failed, errors: result.errors }
+        });
+      }
+      
+      // Log event (summary)
       await this.db.logEvent({
         event_type: 'migration',
         severity: result.failed > 0 ? 'warning' : 'info',

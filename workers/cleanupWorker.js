@@ -29,12 +29,13 @@ class CleanupWorker {
       
       if (pins.length === 0) {
         logger.info('No migrated pins to unpin');
-        return { unpinned: 0, errors: [] };
+        return { unpinned: 0, bytesFreed: 0, errors: [] };
       }
 
       logger.info(`Found ${pins.length} migrated pins to unpin`);
 
       let unpinned = 0;
+      let bytesFreed = 0;
       const errors = [];
 
       for (const pin of pins) {
@@ -49,6 +50,7 @@ class CleanupWorker {
           });
 
           unpinned++;
+          bytesFreed += pin.size_bytes || 0;
           logger.info(`Unpinned migrated: ${pin.cid}`);
         } catch (error) {
           errors.push(`${pin.cid}: ${error.message}`);
@@ -56,8 +58,8 @@ class CleanupWorker {
         }
       }
 
-      logger.info(`Unpinned ${unpinned} migrated pins`);
-      return { unpinned, errors };
+      logger.info(`Unpinned ${unpinned} migrated pins, freed ${bytesFreed} bytes`);
+      return { unpinned, bytesFreed, errors };
     } catch (error) {
       logger.error('Failed to unpin migrated content:', error);
       throw error;
@@ -73,12 +75,13 @@ class CleanupWorker {
       
       if (pins.length === 0) {
         logger.info('No invalid pins to cleanup');
-        return { cleaned: 0, errors: [] };
+        return { cleaned: 0, bytesFreed: 0, errors: [] };
       }
 
       logger.info(`Found ${pins.length} invalid pins to cleanup`);
 
       let cleaned = 0;
+      let bytesFreed = 0;
       const errors = [];
 
       for (const pin of pins) {
@@ -95,6 +98,7 @@ class CleanupWorker {
           await this.db.deletePin(pin.cid);
 
           cleaned++;
+          bytesFreed += pin.size_bytes || 0;
           logger.info(`Cleaned invalid: ${pin.cid}`);
         } catch (error) {
           errors.push(`${pin.cid}: ${error.message}`);
@@ -102,8 +106,8 @@ class CleanupWorker {
         }
       }
 
-      logger.info(`Cleaned up ${cleaned} invalid pins`);
-      return { cleaned, errors };
+      logger.info(`Cleaned up ${cleaned} invalid pins, freed ${bytesFreed} bytes`);
+      return { cleaned, bytesFreed, errors };
     } catch (error) {
       logger.error('Failed to cleanup invalid content:', error);
       throw error;
@@ -204,6 +208,8 @@ class CleanupWorker {
     const summary = {
       migrated_unpinned: 0,
       invalid_cleaned: 0,
+      bytes_freed_migrated: 0,
+      bytes_freed_invalid: 0,
       gc_freed_bytes: 0,
       gc_duration: 0,
       overdue_pins: 0,
@@ -214,11 +220,13 @@ class CleanupWorker {
       // Unpin migrated content
       const migratedResult = await this.unpinMigratedContent();
       summary.migrated_unpinned = migratedResult.unpinned;
+      summary.bytes_freed_migrated = migratedResult.bytesFreed || 0;
       summary.errors.push(...migratedResult.errors);
 
       // Cleanup invalid content
       const invalidResult = await this.cleanupInvalidContent();
       summary.invalid_cleaned = invalidResult.cleaned;
+      summary.bytes_freed_invalid = invalidResult.bytesFreed || 0;
       summary.errors.push(...invalidResult.errors);
 
       // Run garbage collection
@@ -233,7 +241,47 @@ class CleanupWorker {
       // Update last run time
       await this.db.setConfig('last_gc_run', new Date().toISOString());
       
-      // Log event
+      // Update cleanup stats for today
+      const today = new Date().toISOString().split('T')[0];
+      await this.db.updateCleanupStats(today, {
+        invalid_pins_removed: summary.invalid_cleaned,
+        migrated_pins_unpinned: summary.migrated_unpinned,
+        bytes_freed_invalid: summary.bytes_freed_invalid,
+        bytes_freed_migrated: summary.bytes_freed_migrated,
+        gc_runs: 1,
+        gc_duration_seconds: summary.gc_duration,
+        gc_bytes_freed: summary.gc_freed_bytes
+      });
+      
+      // Log detailed events
+      if (summary.migrated_unpinned > 0) {
+        await this.db.logEvent({
+          event_type: 'cleanup_migrated',
+          severity: 'info',
+          message: `Unpinned ${summary.migrated_unpinned} migrated pins (${(summary.bytes_freed_migrated / (1024 * 1024 * 1024)).toFixed(2)} GB)`,
+          metadata: { count: summary.migrated_unpinned, bytes: summary.bytes_freed_migrated }
+        });
+      }
+      
+      if (summary.invalid_cleaned > 0) {
+        await this.db.logEvent({
+          event_type: 'cleanup_invalid',
+          severity: 'info',
+          message: `Cleaned ${summary.invalid_cleaned} invalid pins (${(summary.bytes_freed_invalid / (1024 * 1024 * 1024)).toFixed(2)} GB)`,
+          metadata: { count: summary.invalid_cleaned, bytes: summary.bytes_freed_invalid }
+        });
+      }
+      
+      if (summary.gc_freed_bytes > 0) {
+        await this.db.logEvent({
+          event_type: 'gc_complete',
+          severity: 'info',
+          message: `GC freed ${(summary.gc_freed_bytes / (1024 * 1024 * 1024)).toFixed(2)} GB in ${summary.gc_duration}s`,
+          metadata: { freed: summary.gc_freed_bytes, duration: summary.gc_duration }
+        });
+      }
+      
+      // Log event (summary)
       await this.db.logEvent({
         event_type: 'cleanup',
         severity: summary.errors.length > 0 ? 'warning' : 'info',

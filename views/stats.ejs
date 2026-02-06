@@ -31,27 +31,135 @@
   </nav>
 
   <main class="container">
-    <h2>Traffic Statistics</h2>
+    <h2>System Statistics</h2>
 
-    <!-- Period Selector -->
-    <div class="card">
-      <div class="period-selector">
-        <a href="/stats?period=hourly" class="btn <%= period === 'hourly' ? 'btn-primary' : 'btn-secondary' %>">Hourly</a>
-        <a href="/stats?period=daily" class="btn <%= period === 'daily' ? 'btn-primary' : 'btn-secondary' %>">Daily</a>
-        <a href="/stats?period=weekly" class="btn <%= period === 'weekly' ? 'btn-primary' : 'btn-secondary' %>">Weekly</a>
-        <a href="/stats?period=monthly" class="btn <%= period === 'monthly' ? 'btn-primary' : 'btn-secondary' %>">Monthly</a>
+    <!-- Summary Cards -->
+    <div class="stats-grid" style="margin-bottom: 2rem;">
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-info">
+          <div class="stat-label">Total Pins</div>
+          <div class="stat-value" id="totalPins">-</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📤</div>
+        <div class="stat-info">
+          <div class="stat-label">Pins Served (90d)</div>
+          <div class="stat-value" id="pinsServed">-</div>
+          <div class="stat-subtext" id="bytesServed">-</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🔄</div>
+        <div class="stat-info">
+          <div class="stat-label">Migrated (90d)</div>
+          <div class="stat-value" id="migrated90">-</div>
+          <div class="stat-subtext" id="migratedBytes">-</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🗑️</div>
+        <div class="stat-info">
+          <div class="stat-label">Storage Freed (90d)</div>
+          <div class="stat-value" id="storageFreed">-</div>
+        </div>
       </div>
     </div>
 
-    <!-- Chart -->
+    <!-- Period Selector Tabs -->
     <div class="card">
-      <h3>Bandwidth Usage</h3>
+      <div class="tabs">
+        <button class="tab-btn active" data-period="7">7 Days</button>
+        <button class="tab-btn" data-period="30">30 Days</button>
+        <button class="tab-btn" data-period="90">90 Days</button>
+      </div>
+    </div>
+
+    <!-- Migration Stats -->
+    <div class="card">
+      <h3>📦 Migration Statistics</h3>
+      <div class="stats-row" id="migrationStats">
+        <div class="stat-item">
+          <div class="stat-item-label">Successful</div>
+          <div class="stat-item-value success-text" id="migrationSuccess">-</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-item-label">Failed</div>
+          <div class="stat-item-value danger-text" id="migrationFailures">-</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-item-label">Max Retries Reached</div>
+          <div class="stat-item-value warning-text" id="migrationMaxRetries">-</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-item-label">Data Migrated</div>
+          <div class="stat-item-value" id="migrationBytes">-</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cleanup Stats -->
+    <div class="card">
+      <h3>🧹 Cleanup & Garbage Collection</h3>
+      <div class="stats-row" id="cleanupStats">
+        <div class="stat-item">
+          <div class="stat-item-label">Invalid Pins Removed</div>
+          <div class="stat-item-value" id="cleanupInvalid">-</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-item-label">Migrated Unpinned</div>
+          <div class="stat-item-value" id="cleanupMigrated">-</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-item-label">GC Runs</div>
+          <div class="stat-item-value" id="gcRuns">-</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-item-label">Storage Freed by GC</div>
+          <div class="stat-item-value" id="gcFreed">-</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Metrics -->
+    <div class="card">
+      <h3>💻 System Metrics (Last Hour Average)</h3>
+      <div class="stats-row" id="systemMetrics">
+        <div class="stat-item">
+          <div class="stat-item-label">CPU Usage</div>
+          <div class="stat-item-value" id="cpuAvg">-</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-item-label">CPU Peak</div>
+          <div class="stat-item-value" id="cpuMax">-</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-item-label">Memory Usage</div>
+          <div class="stat-item-value" id="memoryAvg">-</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-item-label">Disk Usage</div>
+          <div class="stat-item-value" id="diskAvg">-</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bandwidth Chart (existing) -->
+    <div class="card">
+      <h3>📈 Bandwidth Usage</h3>
+      <div style="margin-bottom: 1rem;">
+        <a href="/stats?period=hourly" class="btn <%= period === 'hourly' ? 'btn-primary' : 'btn-secondary' %> btn-sm">Hourly</a>
+        <a href="/stats?period=daily" class="btn <%= period === 'daily' ? 'btn-primary' : 'btn-secondary' %> btn-sm">Daily</a>
+        <a href="/stats?period=weekly" class="btn <%= period === 'weekly' ? 'btn-primary' : 'btn-secondary' %> btn-sm">Weekly</a>
+        <a href="/stats?period=monthly" class="btn <%= period === 'monthly' ? 'btn-primary' : 'btn-secondary' %> btn-sm">Monthly</a>
+      </div>
       <canvas id="bandwidthChart"></canvas>
     </div>
 
-    <!-- Stats Table -->
+    <!-- Detailed Stats Table (existing) -->
     <div class="card">
-      <h3>Detailed Stats</h3>
+      <h3>Detailed Traffic Stats</h3>
       <div class="table-responsive">
         <table class="data-table">
           <thead>
@@ -112,13 +220,92 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="/js/main.js"></script>
   <script>
-    // Prepare chart data
+    // State management
+    let currentPeriod = 7;
+    let summaryData = null;
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadSummaryData();
+      updateDisplayedStats();
+      
+      // Setup tab handlers
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          e.target.classList.add('active');
+          currentPeriod = parseInt(e.target.dataset.period);
+          updateDisplayedStats();
+        });
+      });
+    });
+
+    // Load summary data from API
+    async function loadSummaryData() {
+      try {
+        const response = await fetch('/api/stats/summary/all');
+        summaryData = await response.json();
+      } catch (error) {
+        console.error('Failed to load summary data:', error);
+      }
+    }
+
+    // Update displayed stats based on selected period
+    function updateDisplayedStats() {
+      if (!summaryData) return;
+
+      const periodKey = `days_${currentPeriod}`;
+      
+      // Update summary cards (90-day stats)
+      document.getElementById('totalPins').textContent = summaryData.pins.total.toLocaleString();
+      document.getElementById('pinsServed').textContent = summaryData.pins.migrated.toLocaleString();
+      document.getElementById('bytesServed').textContent = formatBytes(summaryData.migration.days_90.bytes_migrated);
+      
+      document.getElementById('migrated90').textContent = summaryData.migration.days_90.success.toLocaleString();
+      document.getElementById('migratedBytes').textContent = formatBytes(summaryData.migration.days_90.bytes_migrated);
+      
+      const totalFreed = summaryData.cleanup.days_90.bytes_freed_invalid + 
+                         summaryData.cleanup.days_90.bytes_freed_migrated + 
+                         summaryData.cleanup.days_90.gc_bytes_freed;
+      document.getElementById('storageFreed').textContent = formatBytes(totalFreed);
+      
+      // Update migration stats for selected period
+      const migration = summaryData.migration[periodKey];
+      document.getElementById('migrationSuccess').textContent = migration.success.toLocaleString();
+      document.getElementById('migrationFailures').textContent = migration.failures.toLocaleString();
+      document.getElementById('migrationMaxRetries').textContent = migration.max_retries.toLocaleString();
+      document.getElementById('migrationBytes').textContent = formatBytes(migration.bytes_migrated);
+      
+      // Update cleanup stats for selected period
+      const cleanup = summaryData.cleanup[periodKey];
+      document.getElementById('cleanupInvalid').textContent = cleanup.invalid_removed.toLocaleString();
+      document.getElementById('cleanupMigrated').textContent = cleanup.migrated_unpinned.toLocaleString();
+      document.getElementById('gcRuns').textContent = cleanup.gc_runs.toLocaleString();
+      document.getElementById('gcFreed').textContent = formatBytes(cleanup.gc_bytes_freed);
+      
+      // Update system metrics
+      const system = summaryData.system;
+      document.getElementById('cpuAvg').textContent = system.cpu_avg.toFixed(1) + '%';
+      document.getElementById('cpuMax').textContent = system.cpu_max.toFixed(1) + '%';
+      document.getElementById('memoryAvg').textContent = system.memory_avg.toFixed(1) + '%';
+      document.getElementById('diskAvg').textContent = system.disk_avg.toFixed(1) + '%';
+    }
+
+    // Format bytes to human-readable format
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Existing bandwidth chart code
     const stats = <%= JSON.stringify(stats || []) %>;
     const labels = stats.map(s => new Date(s.timestamp).toLocaleString());
     const bytesIn = stats.map(s => s.bytes_in / (1024 * 1024));
     const bytesOut = stats.map(s => s.bytes_out / (1024 * 1024));
 
-    // Create chart
     const ctx = document.getElementById('bandwidthChart').getContext('2d');
     new Chart(ctx, {
       type: 'line',

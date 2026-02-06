@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const DB_PATH = path.join(__dirname, '../database/hotnode.db');
+const SCHEMA_VERSION = 2; // Increment when schema changes
 
 // Ensure database directory exists
 const dbDir = path.dirname(DB_PATH);
@@ -73,6 +74,48 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type, timestamp);
 CREATE INDEX IF NOT EXISTS idx_events_severity ON events(severity, timestamp);
+
+-- Migration statistics table: daily summaries
+CREATE TABLE IF NOT EXISTS migration_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date DATE NOT NULL UNIQUE,
+    success_count INTEGER DEFAULT 0,
+    failure_count INTEGER DEFAULT 0,
+    bytes_migrated INTEGER DEFAULT 0,
+    max_retries_reached INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_migration_stats_date ON migration_stats(date);
+
+-- Cleanup statistics table: daily summaries
+CREATE TABLE IF NOT EXISTS cleanup_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date DATE NOT NULL UNIQUE,
+    invalid_pins_removed INTEGER DEFAULT 0,
+    migrated_pins_unpinned INTEGER DEFAULT 0,
+    bytes_freed_invalid INTEGER DEFAULT 0,
+    bytes_freed_migrated INTEGER DEFAULT 0,
+    gc_runs INTEGER DEFAULT 0,
+    gc_duration_seconds INTEGER DEFAULT 0,
+    gc_bytes_freed INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_cleanup_stats_date ON cleanup_stats(date);
+
+-- System metrics table: periodic system health metrics
+CREATE TABLE IF NOT EXISTS system_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    cpu_usage_percent REAL,
+    memory_used_mb REAL,
+    memory_total_mb REAL,
+    memory_percent REAL,
+    disk_used_gb REAL,
+    disk_total_gb REAL,
+    disk_percent REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_system_metrics_timestamp ON system_metrics(timestamp);
 `;
 
 // Default configuration values
@@ -84,7 +127,8 @@ const defaultConfig = [
   ['log_parse_offset', '0'],
   ['last_gc_run', ''],
   ['last_migration_run', ''],
-  ['last_stats_run', '']
+  ['last_stats_run', ''],
+  ['schema_version', SCHEMA_VERSION.toString()]
 ];
 
 function initializeDatabase() {
@@ -149,4 +193,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { initializeDatabase, DB_PATH };
+module.exports = { initializeDatabase, DB_PATH, SCHEMA_VERSION };

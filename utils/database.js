@@ -249,6 +249,144 @@ class Database {
     `;
     return this.all(sql, [eventType, limit]);
   }
+
+  // Migration stats methods
+  async updateMigrationStats(date, updates) {
+    const fields = [];
+    const values = [];
+    
+    for (const [key, value] of Object.entries(updates)) {
+      fields.push(`${key} = ${key} + ?`);
+      values.push(value);
+    }
+    
+    values.push(date);
+    
+    const sql = `
+      INSERT INTO migration_stats (date, ${Object.keys(updates).join(', ')})
+      VALUES (?, ${Object.keys(updates).map(() => '?').join(', ')})
+      ON CONFLICT(date) DO UPDATE SET ${fields.join(', ')}
+    `;
+    return this.run(sql, [date, ...Object.values(updates)]);
+  }
+
+  async getMigrationStats(days = 90) {
+    const sql = `
+      SELECT * FROM migration_stats 
+      WHERE date >= date('now', '-' || ? || ' days')
+      ORDER BY date DESC
+    `;
+    return this.all(sql, [days]);
+  }
+
+  async getMigrationStatsSummary(days = 7) {
+    const sql = `
+      SELECT 
+        SUM(success_count) as total_success,
+        SUM(failure_count) as total_failures,
+        SUM(bytes_migrated) as total_bytes_migrated,
+        SUM(max_retries_reached) as total_max_retries
+      FROM migration_stats
+      WHERE date >= date('now', '-' || ? || ' days')
+    `;
+    return this.get(sql, [days]);
+  }
+
+  // Cleanup stats methods
+  async updateCleanupStats(date, updates) {
+    const fields = [];
+    const values = [];
+    
+    for (const [key, value] of Object.entries(updates)) {
+      fields.push(`${key} = ${key} + ?`);
+      values.push(value);
+    }
+    
+    values.push(date);
+    
+    const sql = `
+      INSERT INTO cleanup_stats (date, ${Object.keys(updates).join(', ')})
+      VALUES (?, ${Object.keys(updates).map(() => '?').join(', ')})
+      ON CONFLICT(date) DO UPDATE SET ${fields.join(', ')}
+    `;
+    return this.run(sql, [date, ...Object.values(updates)]);
+  }
+
+  async getCleanupStats(days = 90) {
+    const sql = `
+      SELECT * FROM cleanup_stats 
+      WHERE date >= date('now', '-' || ? || ' days')
+      ORDER BY date DESC
+    `;
+    return this.all(sql, [days]);
+  }
+
+  async getCleanupStatsSummary(days = 7) {
+    const sql = `
+      SELECT 
+        SUM(invalid_pins_removed) as total_invalid_removed,
+        SUM(migrated_pins_unpinned) as total_migrated_unpinned,
+        SUM(bytes_freed_invalid) as total_bytes_freed_invalid,
+        SUM(bytes_freed_migrated) as total_bytes_freed_migrated,
+        SUM(gc_runs) as total_gc_runs,
+        SUM(gc_duration_seconds) as total_gc_duration,
+        SUM(gc_bytes_freed) as total_gc_bytes_freed
+      FROM cleanup_stats
+      WHERE date >= date('now', '-' || ? || ' days')
+    `;
+    return this.get(sql, [days]);
+  }
+
+  // System metrics methods
+  async insertSystemMetrics(metrics) {
+    const sql = `
+      INSERT INTO system_metrics (
+        cpu_usage_percent, memory_used_mb, memory_total_mb, memory_percent,
+        disk_used_gb, disk_total_gb, disk_percent
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+    return this.run(sql, [
+      metrics.cpu_usage_percent || null,
+      metrics.memory_used_mb || null,
+      metrics.memory_total_mb || null,
+      metrics.memory_percent || null,
+      metrics.disk_used_gb || null,
+      metrics.disk_total_gb || null,
+      metrics.disk_percent || null
+    ]);
+  }
+
+  async getSystemMetrics(hours = 24) {
+    const sql = `
+      SELECT * FROM system_metrics
+      WHERE timestamp >= datetime('now', '-' || ? || ' hours')
+      ORDER BY timestamp DESC
+    `;
+    return this.all(sql, [hours]);
+  }
+
+  async getSystemMetricsAverage(hours = 1) {
+    const sql = `
+      SELECT 
+        AVG(cpu_usage_percent) as avg_cpu,
+        AVG(memory_percent) as avg_memory,
+        AVG(disk_percent) as avg_disk,
+        MAX(memory_used_mb) as max_memory_used,
+        MAX(cpu_usage_percent) as max_cpu
+      FROM system_metrics
+      WHERE timestamp >= datetime('now', '-' || ? || ' hours')
+    `;
+    return this.get(sql, [hours]);
+  }
+
+  async cleanOldSystemMetrics(days = 7) {
+    const sql = `
+      DELETE FROM system_metrics 
+      WHERE timestamp < datetime('now', '-' || ? || ' days')
+    `;
+    return this.run(sql, [days]);
+  }
 }
 
 // Singleton instance

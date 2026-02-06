@@ -791,6 +791,157 @@ router.get('/stats/:period', async (req, res) => {
 });
 
 /**
+ * Get comprehensive stats summary
+ * Returns aggregated stats for 7, 30, and 90 day periods
+ */
+router.get('/stats/summary/all', async (req, res) => {
+  try {
+    const db = getDatabase();
+    
+    // Get migration stats for different periods
+    const migration7 = await db.getMigrationStatsSummary(7);
+    const migration30 = await db.getMigrationStatsSummary(30);
+    const migration90 = await db.getMigrationStatsSummary(90);
+    
+    // Get cleanup stats for different periods
+    const cleanup7 = await db.getCleanupStatsSummary(7);
+    const cleanup30 = await db.getCleanupStatsSummary(30);
+    const cleanup90 = await db.getCleanupStatsSummary(90);
+    
+    // Get pin stats
+    const pinStats = await db.getPinStats();
+    
+    // Get system metrics average (last hour)
+    const systemMetrics = await db.getSystemMetricsAverage(1);
+    
+    // Get recent GC logs
+    const gcLogs = await db.getRecentGCLogs(10);
+    
+    res.json({
+      pins: {
+        total: pinStats.total || 0,
+        pending: pinStats.pending || 0,
+        pending_migration: pinStats.pending_migration || 0,
+        migrated: pinStats.migrated || 0,
+        invalid: pinStats.invalid || 0,
+        overdue: pinStats.overdue || 0
+      },
+      migration: {
+        days_7: {
+          success: migration7?.total_success || 0,
+          failures: migration7?.total_failures || 0,
+          bytes_migrated: migration7?.total_bytes_migrated || 0,
+          max_retries: migration7?.total_max_retries || 0
+        },
+        days_30: {
+          success: migration30?.total_success || 0,
+          failures: migration30?.total_failures || 0,
+          bytes_migrated: migration30?.total_bytes_migrated || 0,
+          max_retries: migration30?.total_max_retries || 0
+        },
+        days_90: {
+          success: migration90?.total_success || 0,
+          failures: migration90?.total_failures || 0,
+          bytes_migrated: migration90?.total_bytes_migrated || 0,
+          max_retries: migration90?.total_max_retries || 0
+        }
+      },
+      cleanup: {
+        days_7: {
+          invalid_removed: cleanup7?.total_invalid_removed || 0,
+          migrated_unpinned: cleanup7?.total_migrated_unpinned || 0,
+          bytes_freed_invalid: cleanup7?.total_bytes_freed_invalid || 0,
+          bytes_freed_migrated: cleanup7?.total_bytes_freed_migrated || 0,
+          gc_runs: cleanup7?.total_gc_runs || 0,
+          gc_duration: cleanup7?.total_gc_duration || 0,
+          gc_bytes_freed: cleanup7?.total_gc_bytes_freed || 0
+        },
+        days_30: {
+          invalid_removed: cleanup30?.total_invalid_removed || 0,
+          migrated_unpinned: cleanup30?.total_migrated_unpinned || 0,
+          bytes_freed_invalid: cleanup30?.total_bytes_freed_invalid || 0,
+          bytes_freed_migrated: cleanup30?.total_bytes_freed_migrated || 0,
+          gc_runs: cleanup30?.total_gc_runs || 0,
+          gc_duration: cleanup30?.total_gc_duration || 0,
+          gc_bytes_freed: cleanup30?.total_gc_bytes_freed || 0
+        },
+        days_90: {
+          invalid_removed: cleanup90?.total_invalid_removed || 0,
+          migrated_unpinned: cleanup90?.total_migrated_unpinned || 0,
+          bytes_freed_invalid: cleanup90?.total_bytes_freed_invalid || 0,
+          bytes_freed_migrated: cleanup90?.total_bytes_freed_migrated || 0,
+          gc_runs: cleanup90?.total_gc_runs || 0,
+          gc_duration: cleanup90?.total_gc_duration || 0,
+          gc_bytes_freed: cleanup90?.total_gc_bytes_freed || 0
+        }
+      },
+      system: {
+        cpu_avg: systemMetrics?.avg_cpu || 0,
+        cpu_max: systemMetrics?.max_cpu || 0,
+        memory_avg: systemMetrics?.avg_memory || 0,
+        memory_max: systemMetrics?.max_memory_used || 0,
+        disk_avg: systemMetrics?.avg_disk || 0
+      },
+      gc_history: gcLogs
+    });
+  } catch (error) {
+    logger.error('Failed to get stats summary:', error);
+    res.status(500).json({ error: 'Failed to get stats summary' });
+  }
+});
+
+/**
+ * Get system metrics history
+ */
+router.get('/stats/system/:hours', async (req, res) => {
+  try {
+    const { hours = 24 } = req.params;
+    const db = getDatabase();
+    
+    const metrics = await db.getSystemMetrics(parseInt(hours, 10));
+    
+    res.json({ metrics });
+  } catch (error) {
+    logger.error('Failed to get system metrics:', error);
+    res.status(500).json({ error: 'Failed to get system metrics' });
+  }
+});
+
+/**
+ * Get migration stats history
+ */
+router.get('/stats/migration/:days', async (req, res) => {
+  try {
+    const { days = 30 } = req.params;
+    const db = getDatabase();
+    
+    const stats = await db.getMigrationStats(parseInt(days, 10));
+    
+    res.json({ stats });
+  } catch (error) {
+    logger.error('Failed to get migration stats:', error);
+    res.status(500).json({ error: 'Failed to get migration stats' });
+  }
+});
+
+/**
+ * Get cleanup stats history
+ */
+router.get('/stats/cleanup/:days', async (req, res) => {
+  try {
+    const { days = 30 } = req.params;
+    const db = getDatabase();
+    
+    const stats = await db.getCleanupStats(parseInt(days, 10));
+    
+    res.json({ stats });
+  } catch (error) {
+    logger.error('Failed to get cleanup stats:', error);
+    res.status(500).json({ error: 'Failed to get cleanup stats' });
+  }
+});
+
+/**
  * Get recent events
  */
 router.get('/events', async (req, res) => {
