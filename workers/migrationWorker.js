@@ -85,11 +85,12 @@ class MigrationWorker {
   /**
    * Calculate dynamic timeout based on file size
    * Base timeout + additional time per MB
+   * Adjusted for slower HDD/SDD storage on supernode
    * @param {number} sizeBytes - File size in bytes
    * @returns {number} - Timeout in milliseconds
    */
   calculateTimeout(sizeBytes) {
-    const baseTimeout = 30000; // 30 seconds base
+    const baseTimeout = 60000; // 60 seconds base (increased for slower storage)
     
     if (!sizeBytes || sizeBytes <= 0) {
       return baseTimeout;
@@ -97,11 +98,11 @@ class MigrationWorker {
     
     const mbSize = sizeBytes / (1024 * 1024);
     
-    // Add 10 seconds per 100MB
-    const additionalTimeout = Math.ceil(mbSize / 100) * 10000;
+    // Add 30 seconds per 100MB (increased for HDD/SDD performance)
+    const additionalTimeout = Math.ceil(mbSize / 100) * 30000;
     
-    // Cap at 10 minutes for very large files
-    const maxTimeout = 600000;
+    // Cap at 20 minutes for very large files
+    const maxTimeout = 1200000;
     
     const calculatedTimeout = baseTimeout + additionalTimeout;
     const finalTimeout = Math.min(calculatedTimeout, maxTimeout);
