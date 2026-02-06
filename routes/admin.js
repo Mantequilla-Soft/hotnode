@@ -175,7 +175,7 @@ router.get('/settings', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const { period = 'daily' } = req.query;
+    const { period = 'hourly' } = req.query;
     const db = getDatabase();
     
     // Get traffic stats
