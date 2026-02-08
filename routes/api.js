@@ -1059,4 +1059,94 @@ router.post('/discord/test', async (req, res) => {
   }
 });
 
+/**
+ * Heal overdue pins - check supernode and update database
+ * POST /api/pins/heal-overdue
+ */
+router.post('/pins/heal-overdue', requireAuth, async (req, res) => {
+  try {
+    const db = getDatabase();
+    const ipfs = getIPFSClient();
+    
+    // Get overdue pins
+    const overduePins = await db.getOverduePins();
+    
+    if (overduePins.length === 0) {
+      return res.json({ 
+        success: true, 
+        healed: 0, 
+        stillOverdue: 0,
+        message: 'No overdue pins to heal'
+      });
+    }
+    
+    const estimatedMinutes = Math.ceil(overduePins.length * 10 / 60);
+    
+    logger.info(`Healing ${overduePins.length} overdue pins in background...`);
+    
+    // Return immediately to avoid HTTP timeout
+    res.json({ 
+      success: true, 
+      message: `Healing ${overduePins.length} pins in background`,
+      estimated_duration: `~${estimatedMinutes} minutes`,
+      count: overduePins.length
+    });
+    
+    // Process healing in background
+    setImmediate(async () => {
+      let healed = 0;
+      let stillOverdue = 0;
+      let errors = 0;
+      
+      // Check each pin serially with delay
+      for (let i = 0; i < overduePins.length; i++) {
+        const pin = overduePins[i];
+        
+        try {
+          const existsOnSupernode = await ipfs.verifySupernodePin(pin.cid);
+          
+          if (existsOnSupernode) {
+            await db.updatePin(pin.cid, {
+              migrated: 1,
+              migrated_at: new Date().toISOString(),
+              notes: 'Healed by manual verification'
+            });
+            healed++;
+            
+            await db.logEvent({
+              event_type: 'healing',
+              severity: 'info',
+              message: `Pin ${pin.cid} healed via manual verification`,
+              metadata: JSON.stringify({ cid: pin.cid })
+            });
+          } else {
+            stillOverdue++;
+          }
+          
+          // 10-second delay between checks
+          if (i < overduePins.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 10000));
+          }
+        } catch (error) {
+          errors++;
+          logger.error(`Error healing ${pin.cid}:`, error.message);
+        }
+      }
+      
+      logger.info(`Healing complete: ${healed} healed, ${stillOverdue} still overdue, ${errors} errors`);
+      
+      // Log final summary
+      await db.logEvent({
+        event_type: 'healing_complete',
+        severity: 'info',
+        message: `Manual healing completed: ${healed} healed, ${stillOverdue} still overdue`,
+        metadata: JSON.stringify({ healed, stillOverdue, errors, manual: true })
+      });
+    });
+  } catch (error) {
+    logger.error('Failed to start healing:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

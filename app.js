@@ -17,6 +17,7 @@ const cleanupWorker = require('./workers/cleanupWorker');
 const statsAggregator = require('./workers/statsAggregator');
 const pinDiscoveryWorker = require('./workers/pinDiscoveryWorker');
 const healthReporter = require('./workers/healthReporter');
+const { getHealingWorker } = require('./workers/healingWorker');
 
 // Import routes
 const healthRoutes = require('./routes/health');
@@ -138,6 +139,17 @@ function scheduleWorkers() {
     }
   });
 
+  // Healing Worker - Daily at 3 AM
+  cron.schedule('0 3 * * *', async () => {
+    logger.info('Running healing worker...');
+    try {
+      const healingWorker = getHealingWorker();
+      await healingWorker.run();
+    } catch (error) {
+      logger.error('Healing worker failed:', error);
+    }
+  });
+
   // Stats Aggregator - Every hour
   cron.schedule('0 * * * *', async () => {
     logger.info('Running stats aggregator worker...');
@@ -184,7 +196,16 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 async function start() {
   try {
     // Initialize database
-    await initializeDatabase();
+    const db = await initializeDatabase();
+    
+    // Initialize migration config settings (with graceful fallback)
+    try {
+      await db.initMigrationConfig();
+      logger.info('Migration configuration initialized');
+    } catch (error) {
+      logger.warn('Failed to initialize migration config, will use defaults:', error.message);
+      // App continues - migration worker will use fallback values
+    }
     
     // Verify IPFS connection
     const ipfs = getIPFSClient();

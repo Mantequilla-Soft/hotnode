@@ -191,4 +191,65 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+/**
+ * Update migration rate settings
+ */
+router.post('/settings/migration-rate', async (req, res) => {
+  try {
+    const { mode, maxDaily } = req.body;
+    const db = getDatabase();
+    
+    // Validate mode
+    const validModes = ['mild', 'normal', 'aggressive'];
+    if (!validModes.includes(mode)) {
+      return res.status(400).json({ success: false, error: 'Invalid migration mode' });
+    }
+    
+    // Save settings
+    await db.setConfig('migration_rate_mode', mode);
+    
+    if (maxDaily && maxDaily > 0) {
+      await db.setConfig('migration_max_daily', maxDaily.toString());
+    } else {
+      // Clear custom max daily if not provided
+      await db.setConfig('migration_max_daily', '');
+    }
+    
+    logger.info(`Migration rate settings updated: mode=${mode}, maxDaily=${maxDaily || 'default'}`);
+    
+    await db.logEvent({
+      event_type: 'config_change',
+      severity: 'info',
+      message: `Migration rate settings updated: ${mode}`,
+      metadata: JSON.stringify({ mode, maxDaily })
+    });
+    
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Failed to update migration rate settings:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Get migration rate settings
+ */
+router.get('/settings/migration-rate', async (req, res) => {
+  try {
+    const db = getDatabase();
+    
+    const mode = await db.getConfig('migration_rate_mode') || 'normal';
+    const maxDaily = await db.getConfig('migration_max_daily');
+    
+    res.json({
+      success: true,
+      mode,
+      maxDaily: maxDaily ? parseInt(maxDaily, 10) : null
+    });
+  } catch (error) {
+    logger.error('Failed to get migration rate settings:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router;

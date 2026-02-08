@@ -231,10 +231,22 @@ class MigrationWorker {
   }
 
   /**
-   * Run the migration worker
+   * Run the migration worker with dynamic batch sizing
    */
   async run() {
     try {
+      // Get overdue count for dynamic batch size calculation
+      const overdueCount = await this.db.getOverdueCount();
+      
+      // Get dynamic migration rate configuration
+      const rateConfig = await config.getMigrationRateConfig(this.db, overdueCount);
+      
+      // Override batch size with dynamic calculation
+      const originalBatchSize = this.batchSize;
+      this.batchSize = rateConfig.batchSize;
+      
+      logger.info(`Migration worker: ${overdueCount} overdue pins, mode=${rateConfig.mode}, batch=${rateConfig.batchSize} (was ${originalBatchSize})`);
+      
       const result = await this.migratePins();
       
       // Update last run time

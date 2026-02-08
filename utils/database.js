@@ -171,6 +171,41 @@ class Database {
     return this.all(sql);
   }
 
+  async initMigrationConfig() {
+    // Initialize migration rate settings if they don't exist
+    const mode = await this.getConfig('migration_rate_mode');
+    if (!mode) {
+      await this.setConfig('migration_rate_mode', 'normal');
+    }
+    
+    const maxDaily = await this.getConfig('migration_max_daily');
+    if (!maxDaily) {
+      await this.setConfig('migration_max_daily', '60');
+    }
+  }
+
+  async getOverduePins() {
+    const sql = `
+      SELECT * FROM pins 
+      WHERE status = 'valid'
+      AND migrated = 0 
+      AND julianday('now') - julianday(added_at) > 7
+      ORDER BY added_at ASC
+    `;
+    return this.all(sql);
+  }
+
+  async getOverdueCount() {
+    const sql = `
+      SELECT COUNT(*) as count FROM pins 
+      WHERE status = 'valid' 
+      AND migrated = 0 
+      AND julianday('now') - julianday(added_at) >= 4
+    `;
+    const result = await this.get(sql);
+    return result ? result.count : 0;
+  }
+
   // Traffic stats methods
   async insertTrafficStats(stats) {
     const sql = `

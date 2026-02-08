@@ -105,6 +105,15 @@ const config = {
     file: optional('LOG_FILE', 'logs/hotnode.log'),
     max_size: optional('LOG_MAX_SIZE', '10m'),
     max_files: optionalInt('LOG_MAX_FILES', 5)
+  },
+
+  /**
+   * Migration rate modes with their respective min/mid/max rates per day
+   */
+  migrationRateModes: {
+    mild: { min: 10, mid: 20, max: 30 },
+    normal: { min: 20, mid: 40, max: 60 },
+    aggressive: { min: 40, mid: 80, max: 120 }
   }
 };
 
@@ -113,5 +122,62 @@ if (!config.supernode.api) {
   console.error('❌ SUPERNODE_API environment variable is required');
   process.exit(1);
 }
+
+/**
+ * Calculate dynamic batch size based on overdue count and migration rate mode
+ * Uses stepped thresholds:
+ *   0-50 overdue pins → minimum rate
+ *   51-200 overdue pins → middle rate
+ *   201+ overdue pins → maximum rate
+ * 
+ * @param {number} overdueCount - Number of overdue pins
+ * @param {string} mode - Migration rate mode (mild, normal, aggressive)
+ * @param {number} maxDaily - Maximum pins per day (custom override)
+ * @returns {number} Batch size for current cycle (maxDaily/2)
+ */
+function calculateBatchSize(overdueCount, mode = 'normal', maxDaily = null) {
+  // If custom max daily is set, use it directly (divide by 2 for per-cycle limit)
+  if (maxDaily && maxDaily > 0) {
+    return Math.floor(maxDaily / 2);
+  }
+
+  // Get rate limits for the selected mode
+  const rates = config.migrationRateModes[mode] || config.migrationRateModes.normal;
+  
+  // Determine daily rate based on stepped thresholds
+  let dailyRate;
+  if (overdueCount <= 50) {
+    dailyRate = rates.min;
+  } else if (overdueCount <= 200) {
+    dailyRate = rates.mid;
+  } else {
+    dailyRate = rates.max;
+  }
+  
+  // Return per-cycle batch size (half of daily rate since worker runs every 12 hours)
+  return Math.floor(dailyRate / 2);
+}
+
+/**
+ * Get migration rate configuration from database
+ * @param {object} db - Database instance
+ * @returns {object} { mode, maxDaily, batchSize }
+ */
+async function getMigrationRateConfig(db, overdueCount) {
+  const mode = await db.getConfig('migration_rate_mode') || 'normal';
+  const maxDaily = await db.getConfig('migration_max_daily');
+  const maxDailyInt = maxDaily ? parseInt(maxDaily, 10) : null;
+  
+  const batchSize = calculateBatchSize(overdueCount, mode, maxDailyInt);
+  
+  return {
+    mode,
+    maxDaily: maxDailyInt,
+    batchSize
+  };
+}
+
+config.calculateBatchSize = calculateBatchSize;
+config.getMigrationRateConfig = getMigrationRateConfig;
 
 module.exports = config;

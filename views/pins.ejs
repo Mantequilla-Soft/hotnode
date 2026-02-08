@@ -32,6 +32,19 @@
   <main class="container">
     <h2>Pin Management</h2>
 
+    <!-- Action Buttons -->
+    <div class="card" style="margin-bottom: 1rem;">
+      <div class="action-buttons">
+        <button class="btn btn-primary" onclick="verifyOverduePins()">
+          🩺 Verify Overdue Pins
+        </button>
+        <span id="verifyStatus" style="margin-left: 1rem; color: #666;"></span>
+      </div>
+      <p class="text-muted" style="margin-top: 0.5rem; font-size: 0.9rem;">
+        Check if overdue pins have been migrated to the supernode manually
+      </p>
+    </div>
+
     <!-- Filters -->
     <div class="card">
       <form method="GET" action="/pins" class="filter-form">
@@ -510,6 +523,42 @@
           migrateBtn.disabled = false;
           migrateBtn.textContent = 'Migrate';
         }
+      }
+    }
+
+    // Verify overdue pins function
+    async function verifyOverduePins() {
+      const statusEl = document.getElementById('verifyStatus');
+      
+      try {
+        const response = await fetch('/api/pins/heal-overdue', {
+          method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Healing now runs in background
+          const message = `🩺 ${data.message} (${data.estimated_duration})`;
+          showNotification(message, 'success');
+          statusEl.textContent = `Processing ${data.count} pins in background...`;
+          statusEl.style.color = '#3b82f6';
+          
+          // Show instruction to refresh later
+          setTimeout(() => {
+            statusEl.textContent = 'Check activity log for results. Refresh page in a few minutes.';
+            statusEl.style.color = '#666';
+          }, 3000);
+        } else {
+          const errorMsg = data.error || 'Unknown error occurred';
+          showNotification('✗ Verification failed: ' + errorMsg, 'error');
+          statusEl.textContent = '✗ Failed';
+          statusEl.style.color = '#ef4444';
+        }
+      } catch (error) {
+        showNotification('✗ Network error: ' + error.message, 'error');
+        statusEl.textContent = '✗ Error';
+        statusEl.style.color = '#ef4444';
       }
     }
   </script>

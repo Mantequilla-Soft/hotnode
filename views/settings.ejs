@@ -61,6 +61,51 @@
       </div>
     </div>
 
+    <!-- Migration Rate Configuration -->
+    <div class="card">
+      <h3>Migration Rate Settings</h3>
+      <form id="migrationRateForm">
+        <div class="form-group">
+          <label>Migration Mode:</label>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="migrationMode" value="mild" <%= (dbConfig.migration_rate_mode === 'mild') ? 'checked' : '' %>>
+              <strong>Mild</strong> - 10-30 pins/day
+              <span class="text-muted">Gentle on supernode, slower backlog clearing</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="migrationMode" value="normal" <%= (!dbConfig.migration_rate_mode || dbConfig.migration_rate_mode === 'normal') ? 'checked' : '' %>>
+              <strong>Normal</strong> - 20-60 pins/day
+              <span class="text-muted">Balanced approach, recommended for most setups</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="migrationMode" value="aggressive" <%= (dbConfig.migration_rate_mode === 'aggressive') ? 'checked' : '' %>>
+              <strong>Aggressive</strong> - 40-120 pins/day
+              <span class="text-muted">Fast backlog clearing, higher supernode load</span>
+            </label>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>Custom Max Daily (Optional):</label>
+          <input type="number" id="migrationMaxDaily" value="<%= dbConfig.migration_max_daily || '' %>" 
+                 placeholder="Leave empty to use mode defaults" min="10" max="500">
+          <small class="text-muted">Override the mode defaults with a custom daily limit</small>
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Save Migration Settings</button>
+      </form>
+      
+      <div style="margin-top: 1rem; padding: 0.75rem; background: #f8f9fa; border-radius: 4px;">
+        <strong>How it works:</strong> The system automatically adjusts migration rate based on backlog size:
+        <ul style="margin: 0.5rem 0 0 1.5rem; font-size: 0.9rem;">
+          <li>0-50 overdue pins → minimum rate</li>
+          <li>51-200 overdue pins → middle rate</li>
+          <li>201+ overdue pins → maximum rate</li>
+        </ul>
+      </div>
+    </div>
+
     <!-- GC History -->
     <div class="card">
       <h3>Recent Garbage Collections</h3>
@@ -173,6 +218,32 @@
           showNotification('Discord webhook saved', 'success');
         } else {
           showNotification('Failed to save webhook', 'error');
+        }
+      } catch (error) {
+        showNotification('Error: ' + error.message, 'error');
+      }
+    });
+
+    document.getElementById('migrationRateForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const mode = document.querySelector('input[name="migrationMode"]:checked').value;
+      const maxDaily = document.getElementById('migrationMaxDaily').value;
+      
+      try {
+        const response = await fetch('/admin/settings/migration-rate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            mode: mode,
+            maxDaily: maxDaily ? parseInt(maxDaily) : null
+          })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showNotification('Migration settings saved', 'success');
+        } else {
+          showNotification('Failed to save settings', 'error');
         }
       } catch (error) {
         showNotification('Error: ' + error.message, 'error');
