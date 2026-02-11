@@ -109,7 +109,7 @@ class PinDiscoveryWorker {
 
       // Send Discord notification if new pins were discovered
       if (result.added > 0) {
-        await this.discord.notify(
+        await this.discord.send(
           'Pin Discovery',
           `🔍 Discovered ${result.added} new pin(s) in IPFS`,
           'info'
