@@ -377,6 +377,8 @@ router.get('/pins/:cid', async (req, res) => {
 
 /**
  * Manual pin add
+ * Uses a short timeout (2 min) for quick validation
+ * For long-running pins, use POST /api/boost instead
  */
 router.post('/pins/add', requireAuth, async (req, res) => {
   try {
@@ -389,8 +391,41 @@ router.post('/pins/add', requireAuth, async (req, res) => {
     const db = getDatabase();
     const ipfs = getIPFSClient();
     
-    // Pin to IPFS
-    await ipfs.pinAdd(cid);
+    // Quick check if CID is resolvable before attempting to pin
+    logger.info(`Checking if CID ${cid} is resolvable...`);
+    const canResolve = await ipfs.canResolve(cid);
+    
+    if (!canResolve) {
+      logger.warn(`CID ${cid} is not resolvable on the IPFS network`);
+      return res.status(400).json({ 
+        error: 'CID not resolvable', 
+        message: 'This content does not exist or is not available on the IPFS network. If this is a large file, try using the Boost API instead.'
+      });
+    }
+    
+    // Pin to IPFS with short timeout for manual operations (2 minutes)
+    // This prevents the daemon from getting stuck on slow/unavailable content
+    // For large files, users should use the Boost API which supports longer timeouts
+    try {
+      await ipfs.pinAdd(cid, true, 120000);
+    } catch (pinError) {
+      // If pinning fails, log it but don't crash
+      logger.error(`Pin failed for ${cid}:`, pinError.message);
+      
+      // Try to remove any partial pin
+      try {
+        await ipfs.pinRm(cid).catch(() => {});
+      } catch (cleanupError) {
+        // Ignore cleanup errors
+      }
+      
+      // Check if this was a timeout
+      if (pinError.message.includes('Timeout')) {
+        throw new Error(`Pin timed out after 2 minutes. For large files, use the Boost API with progress tracking.`);
+      }
+      
+      throw new Error(`Failed to pin CID: ${pinError.message}`);
+    }
     
     // Get size
     const size = await ipfs.getCIDSize(cid);

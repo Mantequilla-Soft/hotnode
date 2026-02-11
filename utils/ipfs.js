@@ -106,6 +106,28 @@ class IPFSClient {
   }
 
   /**
+   * Quick check if CID is resolvable (exists on network)
+   * Uses a short timeout to fail fast on unavailable content
+   * @param {string} cid - The CID to check
+   * @returns {Promise<boolean>} True if CID is resolvable
+   */
+  async canResolve(cid) {
+    try {
+      const response = await axios.post(
+        `${this.apiUrl}/api/v0/dag/resolve`,
+        null,
+        {
+          params: { arg: cid },
+          timeout: 10000 // 10 second timeout
+        }
+      );
+      return response.data && response.data.Cid;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
    * Pin a CID recursively
    * @param {string} cid - The CID to pin
    * @param {boolean} recursive - Whether to pin recursively
