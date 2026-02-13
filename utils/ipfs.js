@@ -57,6 +57,7 @@ class IPFSClient {
 
   /**
    * Get DAG statistics (works with all CID types in Kubo 0.23+)
+   * Returns NDJSON (newline-delimited JSON) stream, we parse the final summary
    */
   async dagStat(cid) {
     try {
@@ -65,10 +66,29 @@ class IPFSClient {
         null,
         {
           params: { arg: cid },
-          timeout: this.timeout
+          timeout: this.timeout,
+          responseType: 'text' // Get raw text to parse NDJSON
         }
       );
-      return response.data;
+      
+      // Parse NDJSON response - split by newlines and parse each JSON object
+      const lines = response.data.trim().split('\n');
+      
+      // The last line contains the final summary with TotalSize
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const obj = JSON.parse(lines[i]);
+          // Look for the final summary which has UniqueBlocks or just TotalSize
+          if (obj.TotalSize !== undefined) {
+            return { Size: obj.TotalSize, NumBlocks: obj.UniqueBlocks || obj.NumBlocks };
+          }
+        } catch (e) {
+          // Skip invalid JSON lines
+          continue;
+        }
+      }
+      
+      return {}; // No valid data found
     } catch (error) {
       throw new Error(`IPFS dag stat failed for ${cid}: ${error.message}`);
     }
