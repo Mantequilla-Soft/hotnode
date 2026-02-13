@@ -104,11 +104,12 @@ class IPFSClient {
     try {
       console.log(`Trying dag/stat for ${cid}...`);
       const dagStat = await this.dagStat(cid);
+      console.log(`dag/stat response:`, JSON.stringify(dagStat));
       if (dagStat && dagStat.Size) {
         console.log(`✓ dag/stat succeeded: ${dagStat.Size} bytes`);
         return dagStat.Size;
       }
-      console.log(`dag/stat returned no size data`);
+      console.log(`dag/stat returned no Size field`);
     } catch (error) {
       console.log(`dag/stat failed: ${error.message}`);
     }
@@ -117,6 +118,7 @@ class IPFSClient {
     try {
       console.log(`Trying object/stat for ${cid}...`);
       const objStat = await this.objectStat(cid);
+      console.log(`object/stat response:`, JSON.stringify(objStat));
       if (objStat && (objStat.CumulativeSize || objStat.BlockSize)) {
         const size = objStat.CumulativeSize || objStat.BlockSize;
         console.log(`✓ object/stat succeeded: ${size} bytes`);
@@ -131,6 +133,7 @@ class IPFSClient {
     try {
       console.log(`Trying block/stat for ${cid}...`);
       const blockStat = await this.blockStat(cid);
+      console.log(`block/stat response:`, JSON.stringify(blockStat));
       if (blockStat && blockStat.Size) {
         console.log(`✓ block/stat succeeded: ${blockStat.Size} bytes`);
         return blockStat.Size;
