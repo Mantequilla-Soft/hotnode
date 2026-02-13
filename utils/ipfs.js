@@ -37,7 +37,7 @@ class IPFSClient {
   }
 
   /**
-   * Get object size from IPFS
+   * Get object size from IPFS (legacy dag-pb only)
    */
   async objectStat(cid) {
     try {
@@ -56,16 +56,80 @@ class IPFSClient {
   }
 
   /**
+   * Get DAG statistics (works with all CID types in Kubo 0.23+)
+   */
+  async dagStat(cid) {
+    try {
+      const response = await axios.post(
+        `${this.apiUrl}/api/v0/dag/stat`,
+        null,
+        {
+          params: { arg: cid },
+          timeout: this.timeout
+        }
+      );
+      return response.data;
+    } catch (error) {
+      throw new Error(`IPFS dag stat failed for ${cid}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get block statistics (works with all CID types, returns raw block size)
+   */
+  async blockStat(cid) {
+    try {
+      const response = await axios.post(
+        `${this.apiUrl}/api/v0/block/stat`,
+        null,
+        {
+          params: { arg: cid },
+          timeout: this.timeout
+        }
+      );
+      return response.data;
+    } catch (error) {
+      throw new Error(`IPFS block stat failed for ${cid}: ${error.message}`);
+    }
+  }
+
+  /**
    * Get cumulative size of a CID (including all children)
+   * Uses fallback strategy to support both old and new Kubo versions
    */
   async getCIDSize(cid) {
+    // Try dag/stat first (Kubo 0.23+, works with all CID types)
     try {
-      const stat = await this.objectStat(cid);
-      return stat.CumulativeSize || stat.BlockSize || 0;
+      const dagStat = await this.dagStat(cid);
+      if (dagStat && dagStat.Size) {
+        return dagStat.Size;
+      }
     } catch (error) {
-      console.error(`Failed to get size for CID ${cid}:`, error.message);
-      return 0;
+      // Silently fall through to next method
     }
+
+    // Try object/stat (legacy, works with dag-pb only)
+    try {
+      const objStat = await this.objectStat(cid);
+      if (objStat && (objStat.CumulativeSize || objStat.BlockSize)) {
+        return objStat.CumulativeSize || objStat.BlockSize;
+      }
+    } catch (error) {
+      // Silently fall through to next method
+    }
+
+    // Try block/stat as last resort (single block size)
+    try {
+      const blockStat = await this.blockStat(cid);
+      if (blockStat && blockStat.Size) {
+        return blockStat.Size;
+      }
+    } catch (error) {
+      // All methods failed
+    }
+
+    console.error(`Failed to get size for CID ${cid}: all methods exhausted`);
+    return 0;
   }
 
   /**
