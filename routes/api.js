@@ -429,6 +429,7 @@ router.post('/pins/add', requireAuth, async (req, res) => {
     
     // Get size
     const size = await ipfs.getCIDSize(cid);
+    logger.info(`Size calculated for ${cid}: ${size} bytes (${(size / (1024 * 1024)).toFixed(2)} MB)`);
     
     // Add to database
     await db.insertPin({
@@ -438,7 +439,7 @@ router.post('/pins/add', requireAuth, async (req, res) => {
       notes: 'Manually added'
     });
     
-    logger.info(`Manually pinned: ${cid}`);
+    logger.info(`Manually pinned: ${cid} (${(size / (1024 * 1024)).toFixed(2)} MB)`);
     
     res.json({ success: true, cid, size });
   } catch (error) {
@@ -629,6 +630,7 @@ router.post('/pins/scan-logs', requireAuth, async (req, res) => {
         
         // Get size
         const size = await ipfs.getCIDSize(cid);
+        logger.info(`Size calculated for ${cid}: ${size} bytes (${(size / (1024 * 1024)).toFixed(2)} MB)`);
         
         // Add to database
         await db.insertPin({
@@ -639,7 +641,7 @@ router.post('/pins/scan-logs', requireAuth, async (req, res) => {
         });
         
         added++;
-        logger.info(`Added pin from IPFS scan: ${cid}`);
+        logger.info(`Added pin from IPFS scan: ${cid} (${(size / (1024 * 1024)).toFixed(2)} MB)`);
         
       } catch (error) {
         errors.push(`${cid}: ${error.message}`);

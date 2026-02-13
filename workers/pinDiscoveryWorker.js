@@ -52,6 +52,7 @@ class PinDiscoveryWorker {
           
           // Get size
           const size = await this.ipfs.getCIDSize(cid);
+          logger.info(`Size calculated for ${cid}: ${size} bytes (${(size / (1024 * 1024)).toFixed(2)} MB)`);
           
           // Add to database with pending status
           await this.db.insertPin({
@@ -62,7 +63,7 @@ class PinDiscoveryWorker {
           });
           
           added++;
-          logger.info(`New pin discovered: ${cid} (${size} bytes)`);
+          logger.info(`New pin discovered: ${cid} (${(size / (1024 * 1024)).toFixed(2)} MB)`);
           
         } catch (error) {
           errors.push(`${cid}: ${error.message}`);

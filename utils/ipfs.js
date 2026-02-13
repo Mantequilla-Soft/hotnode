@@ -98,34 +98,46 @@ class IPFSClient {
    * Uses fallback strategy to support both old and new Kubo versions
    */
   async getCIDSize(cid) {
+    console.log(`Getting size for CID: ${cid}`);
+    
     // Try dag/stat first (Kubo 0.23+, works with all CID types)
     try {
+      console.log(`Trying dag/stat for ${cid}...`);
       const dagStat = await this.dagStat(cid);
       if (dagStat && dagStat.Size) {
+        console.log(`✓ dag/stat succeeded: ${dagStat.Size} bytes`);
         return dagStat.Size;
       }
+      console.log(`dag/stat returned no size data`);
     } catch (error) {
-      // Silently fall through to next method
+      console.log(`dag/stat failed: ${error.message}`);
     }
 
     // Try object/stat (legacy, works with dag-pb only)
     try {
+      console.log(`Trying object/stat for ${cid}...`);
       const objStat = await this.objectStat(cid);
       if (objStat && (objStat.CumulativeSize || objStat.BlockSize)) {
-        return objStat.CumulativeSize || objStat.BlockSize;
+        const size = objStat.CumulativeSize || objStat.BlockSize;
+        console.log(`✓ object/stat succeeded: ${size} bytes`);
+        return size;
       }
+      console.log(`object/stat returned no size data`);
     } catch (error) {
-      // Silently fall through to next method
+      console.log(`object/stat failed: ${error.message}`);
     }
 
     // Try block/stat as last resort (single block size)
     try {
+      console.log(`Trying block/stat for ${cid}...`);
       const blockStat = await this.blockStat(cid);
       if (blockStat && blockStat.Size) {
+        console.log(`✓ block/stat succeeded: ${blockStat.Size} bytes`);
         return blockStat.Size;
       }
+      console.log(`block/stat returned no size data`);
     } catch (error) {
-      // All methods failed
+      console.log(`block/stat failed: ${error.message}`);
     }
 
     console.error(`Failed to get size for CID ${cid}: all methods exhausted`);
