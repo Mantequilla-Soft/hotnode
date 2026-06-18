@@ -1101,8 +1101,8 @@ router.post('/discord/test', async (req, res) => {
 router.post('/pins/heal-overdue', requireAuth, async (req, res) => {
   try {
     const db = getDatabase();
-    const ipfs = getIPFSClient();
-    
+    const worker = migrationWorker.getMigrationWorker();
+
     // Get overdue pins
     const overduePins = await db.getOverduePins();
     
@@ -1138,7 +1138,7 @@ router.post('/pins/heal-overdue', requireAuth, async (req, res) => {
         const pin = overduePins[i];
         
         try {
-          const existsOnSupernode = await ipfs.verifySupernodePin(pin.cid);
+          const existsOnSupernode = await worker.verifySupernodePin(pin.cid);
           
           if (existsOnSupernode) {
             await db.updatePin(pin.cid, {

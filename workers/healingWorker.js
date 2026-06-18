@@ -1,5 +1,5 @@
 const { getDatabase } = require('../utils/database');
-const { getIPFSClient } = require('../utils/ipfs');
+const { getMigrationWorker } = require('./migrationWorker');
 const logger = require('../utils/logger');
 const { getDiscordNotifier } = require('../utils/discord');
 
@@ -14,7 +14,7 @@ const { getDiscordNotifier } = require('../utils/discord');
 class HealingWorker {
   constructor() {
     this.db = getDatabase();
-    this.ipfs = getIPFSClient();
+    this.migrationWorker = getMigrationWorker();
     this.discord = getDiscordNotifier();
     this.checkDelay = 10000; // 10 seconds between checks
   }
@@ -62,7 +62,7 @@ class HealingWorker {
           logger.info(`[${i + 1}/${overduePins.length}] Checking ${pin.cid}...`);
           
           // Check if pin exists on supernode
-          const existsOnSupernode = await this.ipfs.verifySupernodePin(pin.cid);
+          const existsOnSupernode = await this.migrationWorker.verifySupernodePin(pin.cid);
           
           if (existsOnSupernode) {
             // Pin found on supernode - update database
