@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const DB_PATH = path.join(__dirname, '../database/hotnode.db');
-const SCHEMA_VERSION = 2; // Increment when schema changes
+const SCHEMA_VERSION = 3; // Increment when schema changes
 
 // Ensure database directory exists
 const dbDir = path.dirname(DB_PATH);
@@ -26,13 +26,26 @@ CREATE TABLE IF NOT EXISTS pins (
     unpinned_at DATETIME,
     retry_count INTEGER DEFAULT 0,
     last_retry_at DATETIME,
-    notes TEXT
+    notes TEXT,
+    -- owner/permlink: join key back to Mongo (video identity). NULL for pins
+    -- that don't resolve to a known video (e.g. an admin manually pinning an
+    -- arbitrary CID) - the retention query treats those as never-dormant
+    -- rather than guessing.
+    owner TEXT,
+    permlink TEXT,
+    -- Last time this content was actually served to a real viewer, per
+    -- Mongo's view-heatmaps.updatedAt (see workers/syncLastServedWorker.js).
+    -- Drives retention instead of migration status - see
+    -- getDormantPinsForCleanup().
+    last_served_at DATETIME
 );
 
 CREATE INDEX IF NOT EXISTS idx_pins_status ON pins(status);
 CREATE INDEX IF NOT EXISTS idx_pins_migrated ON pins(migrated, added_at);
 CREATE INDEX IF NOT EXISTS idx_pins_cid ON pins(cid);
 CREATE INDEX IF NOT EXISTS idx_pins_added_at ON pins(added_at);
+CREATE INDEX IF NOT EXISTS idx_pins_owner_permlink ON pins(owner, permlink);
+CREATE INDEX IF NOT EXISTS idx_pins_last_served_at ON pins(last_served_at);
 
 -- Traffic stats table: bandwidth and request tracking
 CREATE TABLE IF NOT EXISTS traffic_stats (
