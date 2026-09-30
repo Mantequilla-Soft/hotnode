@@ -202,6 +202,39 @@ class MongoDBClient {
   }
 
   /**
+   * Last time a video was actually served to a real viewer, per the
+   * video player's own tracking (snapievideoplayer's watchTracking.js).
+   *
+   * view-heatmaps has one doc per (owner, permlink), and its `updatedAt` is
+   * bumped by watchStart on every genuine watch and by watchBeat on real
+   * playback progress - crucially, watchStart explicitly skips this for
+   * placeholder plays (deleted/encoding/failed), so a dead video's
+   * placeholder view never counts as "still being watched" here. This is
+   * the one true source for "is this content still in demand", so hotnode
+   * doesn't need its own separate view-tracking.
+   *
+   * Returns null if the video has no heatmap doc yet (never watched, or a
+   * collection/field name mismatch - check HEATMAP_COLLECTION on both
+   * sides if this stays null for content you know was played).
+   */
+  async getLastServedAt(owner, permlink) {
+    try {
+      if (!this.connected) {
+        await this.connect();
+      }
+      const heatmaps = this.db.collection(config.mongodb.collection_heatmaps);
+      const doc = await heatmaps.findOne(
+        { owner, permlink },
+        { projection: { updatedAt: 1 } }
+      );
+      return doc?.updatedAt || null;
+    } catch (error) {
+      console.error(`Failed to get last-served time for ${owner}/${permlink}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
    * Health check - verify MongoDB connection
    */
   async healthCheck() {

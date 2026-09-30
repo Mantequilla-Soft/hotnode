@@ -18,6 +18,7 @@ const statsAggregator = require('./workers/statsAggregator');
 const pinDiscoveryWorker = require('./workers/pinDiscoveryWorker');
 const healthReporter = require('./workers/healthReporter');
 const { getHealingWorker } = require('./workers/healingWorker');
+const syncLastServedWorker = require('./workers/syncLastServedWorker');
 
 // Import routes
 const healthRoutes = require('./routes/health');
@@ -116,6 +117,19 @@ function scheduleWorkers() {
       await mongoValidator.run();
     } catch (error) {
       logger.error('MongoDB validator worker failed:', error);
+    }
+  });
+
+  // Sync Last-Served Worker - Every RETENTION_SYNC_INTERVAL_HOURS (default 4h)
+  // Pulls last_served_at from Mongo's view-heatmaps so the cleanup worker's
+  // dormancy check has fresh data without a live cross-DB lookup per pin.
+  const syncHours = Math.max(1, config.retention.sync_interval_hours);
+  cron.schedule(`0 */${syncHours} * * *`, async () => {
+    logger.info('Running sync last-served worker...');
+    try {
+      await syncLastServedWorker.run();
+    } catch (error) {
+      logger.error('Sync last-served worker failed:', error);
     }
   });
 

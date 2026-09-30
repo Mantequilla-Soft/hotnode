@@ -16,23 +16,27 @@ class CleanupWorker {
     this.db = getDatabase();
     this.ipfs = getIPFSClient();
     this.discord = getDiscordNotifier();
-    this.deleteDays = config.migration.delete_after_days;
+    this.minAgeDays = config.retention.min_age_days;
+    this.dormantAfterDays = config.retention.dormant_after_days;
     this.invalidRetentionDays = config.cleanup.invalid_retention_days;
   }
 
   /**
-   * Unpin migrated content (older than 7 days)
+   * Unpin content that is both old enough (minAgeDays since upload) AND
+   * currently dormant (no real playback in dormantAfterDays) - see
+   * database.js's getDormantPinsForCleanup() for why `migrated` is no
+   * longer part of this decision at all.
    */
-  async unpinMigratedContent() {
+  async unpinDormantContent() {
     try {
-      const pins = await this.db.getMigratedPinsForCleanup(this.deleteDays);
-      
+      const pins = await this.db.getDormantPinsForCleanup(this.minAgeDays, this.dormantAfterDays);
+
       if (pins.length === 0) {
-        logger.info('No migrated pins to unpin');
+        logger.info('No dormant pins to unpin');
         return { unpinned: 0, bytesFreed: 0, errors: [] };
       }
 
-      logger.info(`Found ${pins.length} migrated pins to unpin`);
+      logger.info(`Found ${pins.length} dormant pins to unpin`);
 
       let unpinned = 0;
       let bytesFreed = 0;
@@ -51,17 +55,17 @@ class CleanupWorker {
 
           unpinned++;
           bytesFreed += pin.size_bytes || 0;
-          logger.info(`Unpinned migrated: ${pin.cid}`);
+          logger.info(`Unpinned dormant: ${pin.cid} (owner=${pin.owner || 'unknown'})`);
         } catch (error) {
           errors.push(`${pin.cid}: ${error.message}`);
           logger.error(`Failed to unpin ${pin.cid}:`, error.message);
         }
       }
 
-      logger.info(`Unpinned ${unpinned} migrated pins, freed ${bytesFreed} bytes`);
+      logger.info(`Unpinned ${unpinned} dormant pins, freed ${bytesFreed} bytes`);
       return { unpinned, bytesFreed, errors };
     } catch (error) {
-      logger.error('Failed to unpin migrated content:', error);
+      logger.error('Failed to unpin dormant content:', error);
       throw error;
     }
   }
@@ -217,11 +221,14 @@ class CleanupWorker {
     };
 
     try {
-      // Unpin migrated content
-      const migratedResult = await this.unpinMigratedContent();
-      summary.migrated_unpinned = migratedResult.unpinned;
-      summary.bytes_freed_migrated = migratedResult.bytesFreed || 0;
-      summary.errors.push(...migratedResult.errors);
+      // Unpin dormant content (old enough AND no recent real playback -
+      // see unpinDormantContent(). Field names below (migrated_*) are kept
+      // as-is to avoid an unrelated cleanup_stats schema migration; they
+      // now mean "dormant", not "migrated".
+      const dormantResult = await this.unpinDormantContent();
+      summary.migrated_unpinned = dormantResult.unpinned;
+      summary.bytes_freed_migrated = dormantResult.bytesFreed || 0;
+      summary.errors.push(...dormantResult.errors);
 
       // Cleanup invalid content
       const invalidResult = await this.cleanupInvalidContent();
