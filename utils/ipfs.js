@@ -6,6 +6,9 @@ class IPFSClient {
   constructor(apiUrl = config.hotnode.ipfs_api) {
     this.apiUrl = apiUrl;
     this.timeout = 30000; // 30 seconds default
+
+    // Used only for calls that hold kubo's GC lock - see repoGC().
+    this.directApiUrl = config.hotnode.ipfs_api_direct;
   }
 
   /**
@@ -168,7 +171,9 @@ class IPFSClient {
             arg: cid,
             recursive: recursive
           },
-          timeout: this.timeout
+          // pin/rm holds the GC lock. Abandoning it mid-flight leaks that
+          // lock, so do not hang up on a call that is still running.
+          timeout: config.cleanup.pin_rm_timeout_ms
         }
       );
       return response.data;
@@ -181,12 +186,31 @@ class IPFSClient {
    * Run garbage collection
    */
   async repoGC() {
+    // The previous 240s bound was chosen to fire just under nginx's 300s
+    // proxy_read_timeout so the error would be attributable. That was the
+    // wrong trade: bounding the *wait* does nothing to stop the GC, and
+    // hanging up on a running GC is what wedges this node.
+    //
+    // kubo 0.27 serialises all blockstore mutation behind one process-wide
+    // GC lock and does not abort the handler when the client disconnects.
+    // So an abandoned repo/gc keeps the exclusive lock forever: reads stay
+    // fast while every add/pin/block write blocks, until the daemon is
+    // restarted. That is exactly what happened on 6 Oct 2026 - a 499 on
+    // repo/gc at 02:04:01 stopped ingestion for the next eight days.
+    //
+    // So: talk to kubo directly (no proxy that can hang up on us) and allow
+    // the full configured budget. A real GC here runs 6-25s; the timeout is
+    // a backstop against a genuinely stuck daemon, not a routine bound.
+    // If it ever does fire, the daemon is wedged and needs a restart -
+    // ipfs-watchdog.sh detects that and handles it.
+    const timeoutMs = Math.max(1, config.cleanup.gc_timeout_minutes) * 60 * 1000;
+
     try {
       const response = await axios.post(
-        `${this.apiUrl}/api/v0/repo/gc`,
+        `${this.directApiUrl}/api/v0/repo/gc`,
         null,
         {
-          timeout: 3600000 // 1 hour timeout for GC
+          timeout: timeoutMs
         }
       );
       return response.data;
