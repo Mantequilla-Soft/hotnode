@@ -1,0 +1,22 @@
+[Unit]
+Description=IPFS write-path watchdog (detects wedged GC lock)
+Documentation=file:/usr/local/sbin/ipfs-watchdog.sh
+After=ipfs.service
+
+[Service]
+Type=oneshot
+# Must live in a root-owned path: this runs as root, and /opt/ipfs-hotnode
+# is writable by the 'meno' user. Install with
+#   sudo install -o root -g root -m 755 \
+#       /opt/ipfs-hotnode/scripts/ipfs-watchdog.sh /usr/local/sbin/
+ExecStart=/usr/local/sbin/ipfs-watchdog.sh
+
+# Needs root to run `systemctl restart ipfs.service`.
+User=root
+
+# Give the probes room: read 5s + write 15s + diagnostics capture.
+TimeoutStartSec=180
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ipfs-watchdog
