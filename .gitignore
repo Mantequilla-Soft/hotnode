@@ -36,3 +36,12 @@ tmp/
 
 # Internal documentation
 internal-docs/
+
+# Deployment-specific nginx config. Kept out of git because it embeds the
+# per-host IP allowlist for the API proxy. See scripts/ipfs-watchdog.sh for
+# the reasoning behind the endpoint restrictions it applies.
+scripts/nginx/
+scripts/nginx-api-hardening.conf
+
+# Stray root-level sqlite file; the real database lives in database/
+/hotnode.db

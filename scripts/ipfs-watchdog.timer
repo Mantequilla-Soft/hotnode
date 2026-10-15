@@ -1,0 +1,18 @@
+[Unit]
+Description=Run the IPFS write-path watchdog every 2 minutes
+Documentation=file:/usr/local/sbin/ipfs-watchdog.sh
+
+[Timer]
+# Start probing shortly after boot, once the daemon has had time to open
+# its API, so the first run does not trip over a still-booting node.
+OnBootSec=3min
+
+# Every 2 minutes. With STRIKES_TO_ACT=2 the node recovers ~4 minutes
+# after wedging, versus the hours-to-days it currently sits broken.
+OnUnitActiveSec=2min
+
+AccuracySec=15s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

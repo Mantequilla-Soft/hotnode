@@ -43,6 +43,14 @@ const config = {
     name: optional('HOTNODE_NAME', 'HotNode-01'),
     port: optionalInt('HOTNODE_PORT', 3101),
     ipfs_api: optional('IPFS_API_URL', 'http://127.0.0.1:5001'),
+
+    // kubo's real API, bypassing the nginx proxy that fronts ipfs_api.
+    // Operations that hold kubo's GC lock must never be cut off by a proxy
+    // read timeout: kubo does not abort the handler when the client goes
+    // away, so an abandoned request leaks the lock and the daemon stops
+    // accepting writes until it is restarted. Those calls go here instead.
+    ipfs_api_direct: optional('IPFS_API_DIRECT_URL', 'http://127.0.0.1:5002'),
+
     ipfs_gateway: optional('IPFS_GATEWAY_URL', 'http://127.0.0.1:8080')
   },
   
@@ -76,7 +84,13 @@ const config = {
   cleanup: {
     invalid_retention_days: optionalInt('CLEANUP_INVALID_RETENTION_DAYS', 2),
     gc_schedule: optional('CLEANUP_GC_SCHEDULE', '0 2 * * *'),
-    gc_timeout_minutes: optionalInt('CLEANUP_GC_TIMEOUT_MINUTES', 60)
+    gc_timeout_minutes: optionalInt('CLEANUP_GC_TIMEOUT_MINUTES', 60),
+
+    // pin/rm takes kubo's GC lock. Normal latency on this node is ~25ms;
+    // the old 30s bound only ever fired when the daemon was already wedged,
+    // and abandoning the call then just leaked another lock holder. Keep it
+    // generous so a healthy-but-busy node is never hung up on.
+    pin_rm_timeout_ms: optionalInt('IPFS_PIN_RM_TIMEOUT_MS', 120000)
   },
   
   stats: {
