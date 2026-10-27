@@ -454,8 +454,8 @@ class Database {
     const sql = `
       SELECT
         SUM(CASE WHEN unpinned = 0 THEN 1 ELSE 0 END) as active,
-        SUM(CASE WHEN unpinned = 0 AND last_served_at >= datetime('now', '-' || ? || ' days') THEN 1 ELSE 0 END) as watched,
-        SUM(CASE WHEN unpinned = 0 AND last_served_at >= datetime('now', '-' || ? || ' days') THEN size_bytes ELSE 0 END) as watched_bytes
+        SUM(CASE WHEN unpinned = 0 AND julianday('now') - julianday(last_served_at) <= ? THEN 1 ELSE 0 END) as watched,
+        SUM(CASE WHEN unpinned = 0 AND julianday('now') - julianday(last_served_at) <= ? THEN size_bytes ELSE 0 END) as watched_bytes
       FROM pins
     `;
     return this.get(sql, [days, days]);

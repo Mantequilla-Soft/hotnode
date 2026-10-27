@@ -232,8 +232,11 @@
         console.error('Failed to load summary data:', error);
         document.getElementById('loadErrorDetail').textContent = error.message;
         document.getElementById('loadError').style.display = 'block';
-        // Empty structure so the page renders placeholders instead of throwing
-        summaryData = { pins: {}, migration: {}, cleanup: {}, system: {}, gc_history: [] };
+        // Leave summaryData null so the "-" placeholders stay instead of
+        // rendering zeros that look like real numbers.
+        summaryData = null;
+        document.getElementById('gcHistory').innerHTML =
+          '<tr><td colspan="4" class="text-muted">Unavailable</td></tr>';
       }
     }
 

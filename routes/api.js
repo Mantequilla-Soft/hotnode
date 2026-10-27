@@ -949,9 +949,10 @@ router.get('/stats/summary/all', async (req, res) => {
           disk_used_gb: latestMetrics.disk_used_gb,
           disk_total_gb: latestMetrics.disk_total_gb
         } : null,
-        cpu_avg_24h: systemMetrics?.avg_cpu || 0,
-        cpu_max_24h: systemMetrics?.max_cpu || 0,
-        memory_avg_24h: systemMetrics?.avg_memory || 0
+        // null, not 0, when no sample landed in the window
+        cpu_avg_24h: systemMetrics?.avg_cpu ?? null,
+        cpu_max_24h: systemMetrics?.max_cpu ?? null,
+        memory_avg_24h: systemMetrics?.avg_memory ?? null
       },
       gc_history: gcLogs
     });
