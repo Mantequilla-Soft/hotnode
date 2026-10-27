@@ -45,6 +45,12 @@ async function migrate() {
   const db = new sqlite3.Database(DB_PATH);
   try {
     const existing = new Set((await all(db, 'PRAGMA table_info(pins)')).map((c) => c.name));
+    if (existing.size === 0) {
+      // Fresh install: deploy.sh runs migrations before init-db, which will
+      // create the current schema (these columns included) from scratch.
+      console.log('- no pins table yet, nothing to migrate (init-db creates the current schema)');
+      return;
+    }
 
     for (const col of NEW_COLUMNS) {
       if (existing.has(col.name)) {
