@@ -869,8 +869,12 @@ router.get('/stats/summary/all', async (req, res) => {
     // Get pin stats
     const pinStats = await db.getPinStats();
     
-    // Get system metrics average (last hour)
-    const systemMetrics = await db.getSystemMetricsAverage(1);
+    // healthReporter samples system metrics every 6h, so a "last hour"
+    // window was empty 5 hours out of 6. Report the latest sample plus a
+    // 24h average/peak (4 samples) instead.
+    const latestMetrics = await db.getLatestSystemMetrics();
+    const systemMetrics = await db.getSystemMetricsAverage(24);
+    const serving = await db.getServingStats(90);
     
     // Get recent GC logs
     const gcLogs = await db.getRecentGCLogs(10);
@@ -882,7 +886,10 @@ router.get('/stats/summary/all', async (req, res) => {
         pending_migration: pinStats.pending_migration || 0,
         migrated: pinStats.migrated || 0,
         invalid: pinStats.invalid || 0,
-        overdue: pinStats.overdue || 0
+        overdue: pinStats.overdue || 0,
+        active: serving?.active || 0,
+        watched_90d: serving?.watched || 0,
+        watched_90d_bytes: serving?.watched_bytes || 0
       },
       migration: {
         days_7: {
@@ -934,11 +941,17 @@ router.get('/stats/summary/all', async (req, res) => {
         }
       },
       system: {
-        cpu_avg: systemMetrics?.avg_cpu || 0,
-        cpu_max: systemMetrics?.max_cpu || 0,
-        memory_avg: systemMetrics?.avg_memory || 0,
-        memory_max: systemMetrics?.max_memory_used || 0,
-        disk_avg: systemMetrics?.avg_disk || 0
+        latest: latestMetrics ? {
+          timestamp: latestMetrics.timestamp,
+          cpu: latestMetrics.cpu_usage_percent,
+          memory_percent: latestMetrics.memory_percent,
+          disk_percent: latestMetrics.disk_percent,
+          disk_used_gb: latestMetrics.disk_used_gb,
+          disk_total_gb: latestMetrics.disk_total_gb
+        } : null,
+        cpu_avg_24h: systemMetrics?.avg_cpu || 0,
+        cpu_max_24h: systemMetrics?.max_cpu || 0,
+        memory_avg_24h: systemMetrics?.avg_memory || 0
       },
       gc_history: gcLogs
     });

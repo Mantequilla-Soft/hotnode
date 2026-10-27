@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Statistics - Hot Node</title>
   <link rel="stylesheet" href="/css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
   <nav class="navbar">
@@ -33,6 +32,10 @@
   <main class="container">
     <h2>System Statistics</h2>
 
+    <div id="loadError" class="card danger-text" style="display: none;">
+      ⚠️ Couldn't load statistics (<span id="loadErrorDetail"></span>). The numbers below are not current.
+    </div>
+
     <!-- Summary Cards -->
     <div class="stats-grid" style="margin-bottom: 2rem;">
       <div class="stat-card">
@@ -45,9 +48,9 @@
       <div class="stat-card">
         <div class="stat-icon">📤</div>
         <div class="stat-info">
-          <div class="stat-label">Pins Served (90d)</div>
-          <div class="stat-value" id="pinsServed">-</div>
-          <div class="stat-subtext" id="bytesServed">-</div>
+          <div class="stat-label">Pins Watched (90d)</div>
+          <div class="stat-value" id="pinsWatched">-</div>
+          <div class="stat-subtext" id="pinsWatchedSub">-</div>
         </div>
       </div>
       <div class="stat-card">
@@ -61,7 +64,7 @@
       <div class="stat-card">
         <div class="stat-icon">🗑️</div>
         <div class="stat-info">
-          <div class="stat-label">Storage Freed (90d)</div>
+          <div class="stat-label">Storage Freed by GC (90d)</div>
           <div class="stat-value" id="storageFreed">-</div>
         </div>
       </div>
@@ -108,7 +111,7 @@
           <div class="stat-item-value" id="cleanupInvalid">-</div>
         </div>
         <div class="stat-item">
-          <div class="stat-item-label">Migrated Unpinned</div>
+          <div class="stat-item-label" title="Unpinned by the retention rule: dormant content since dormancy-based retention, migrated content before that">Unpinned (retention)</div>
           <div class="stat-item-value" id="cleanupMigrated">-</div>
         </div>
         <div class="stat-item">
@@ -124,27 +127,48 @@
 
     <!-- System Metrics -->
     <div class="card">
-      <h3>💻 System Metrics (Last Hour Average)</h3>
+      <h3>💻 System Metrics</h3>
+      <p class="text-muted" id="metricsSampledAt">Sampled every 6 hours</p>
       <div class="stats-row" id="systemMetrics">
         <div class="stat-item">
-          <div class="stat-item-label">CPU Usage</div>
-          <div class="stat-item-value" id="cpuAvg">-</div>
+          <div class="stat-item-label">CPU (latest)</div>
+          <div class="stat-item-value" id="cpuLatest">-</div>
         </div>
         <div class="stat-item">
-          <div class="stat-item-label">CPU Peak</div>
-          <div class="stat-item-value" id="cpuMax">-</div>
+          <div class="stat-item-label">CPU 24h avg / peak</div>
+          <div class="stat-item-value" id="cpu24h">-</div>
         </div>
         <div class="stat-item">
-          <div class="stat-item-label">Memory Usage</div>
-          <div class="stat-item-value" id="memoryAvg">-</div>
+          <div class="stat-item-label">Memory (latest)</div>
+          <div class="stat-item-value" id="memoryLatest">-</div>
         </div>
         <div class="stat-item">
-          <div class="stat-item-label">Disk Usage</div>
-          <div class="stat-item-value" id="diskAvg">-</div>
+          <div class="stat-item-label">Disk (latest)</div>
+          <div class="stat-item-value" id="diskLatest">-</div>
+          <div class="stat-subtext" id="diskLatestSub"></div>
         </div>
       </div>
     </div>
 
+    <!-- GC History -->
+    <div class="card">
+      <h3>🗑️ Recent Garbage Collection Runs</h3>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Run at</th>
+              <th>Duration</th>
+              <th>Freed</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody id="gcHistory">
+            <tr><td colspan="4" class="text-muted">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
   </main>
 
@@ -174,7 +198,6 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="/js/main.js"></script>
   <script>
     // State management - separate periods for different sections
@@ -201,17 +224,31 @@
     async function loadSummaryData() {
       try {
         const response = await fetch('/api/stats/summary/all');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
         summaryData = await response.json();
       } catch (error) {
         console.error('Failed to load summary data:', error);
-        // Set empty data structure to prevent errors
-        summaryData = {
-          pins: { total: 0, migrated: 0 },
-          migration: { days_7: {}, days_30: {}, days_90: { success: 0, bytes_migrated: 0 } },
-          cleanup: { days_7: {}, days_30: {}, days_90: {} },
-          system: { cpu_avg: 0, cpu_max: 0, memory_avg: 0, disk_avg: 0 }
-        };
+        document.getElementById('loadErrorDetail').textContent = error.message;
+        document.getElementById('loadError').style.display = 'block';
+        // Empty structure so the page renders placeholders instead of throwing
+        summaryData = { pins: {}, migration: {}, cleanup: {}, system: {}, gc_history: [] };
       }
+    }
+
+    // SQLite timestamps ("YYYY-MM-DD HH:MM:SS") are UTC but carry no zone;
+    // new Date() would read them as local time.
+    function parseUTC(ts) {
+      return new Date(String(ts).replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(ts) ? '' : 'Z'));
+    }
+
+    function pct(value) {
+      return value == null ? '-' : Number(value).toFixed(1) + '%';
+    }
+
+    function bytesOrZero(bytes) {
+      return formatBytes(bytes || 0);
     }
 
     // Update displayed stats based on selected period (7/30/90 days)
@@ -219,50 +256,80 @@
       if (!summaryData) return;
 
       const periodKey = `days_${summaryPeriod}`;
-      
-      // Update summary cards (always use 90-day stats)
-      document.getElementById('totalPins').textContent = (summaryData.pins?.total || 0).toLocaleString();
-      document.getElementById('pinsServed').textContent = (summaryData.pins?.migrated || 0).toLocaleString();
-      document.getElementById('bytesServed').textContent = formatBytes(summaryData.migration?.days_90?.bytes_migrated || 0);
-      
-      document.getElementById('migrated90').textContent = (summaryData.migration?.days_90?.success || 0).toLocaleString();
-      document.getElementById('migratedBytes').textContent = formatBytes(summaryData.migration?.days_90?.bytes_migrated || 0);
-      
-      const cleanup90 = summaryData.cleanup?.days_90 || {};
-      const totalFreed = (cleanup90.bytes_freed_invalid || 0) + 
-                         (cleanup90.bytes_freed_migrated || 0) + 
-                         (cleanup90.gc_bytes_freed || 0);
-      document.getElementById('storageFreed').textContent = formatBytes(totalFreed);
-      
-      // Update migration stats for selected period (7/30/90)
+      const pins = summaryData.pins || {};
+
+      // Summary cards (always 90-day)
+      document.getElementById('totalPins').textContent = (pins.total || 0).toLocaleString();
+      document.getElementById('pinsWatched').textContent = (pins.watched_90d || 0).toLocaleString();
+      document.getElementById('pinsWatchedSub').textContent =
+        `of ${(pins.active || 0).toLocaleString()} still pinned · ${bytesOrZero(pins.watched_90d_bytes)}`;
+
+      const migration90 = summaryData.migration?.days_90 || {};
+      document.getElementById('migrated90').textContent = (migration90.success || 0).toLocaleString();
+      document.getElementById('migratedBytes').textContent = bytesOrZero(migration90.bytes_migrated);
+
+      // GC is what actually reclaims disk; unpinned/invalid bytes are only
+      // freed BY a GC run, so adding them on top double-counted.
+      document.getElementById('storageFreed').textContent = bytesOrZero(summaryData.cleanup?.days_90?.gc_bytes_freed);
+
+      // Migration stats for selected period
       const migration = summaryData.migration?.[periodKey] || {};
       document.getElementById('migrationSuccess').textContent = (migration.success || 0).toLocaleString();
       document.getElementById('migrationFailures').textContent = (migration.failures || 0).toLocaleString();
       document.getElementById('migrationMaxRetries').textContent = (migration.max_retries || 0).toLocaleString();
-      document.getElementById('migrationBytes').textContent = formatBytes(migration.bytes_migrated || 0);
-      
-      // Update cleanup stats for selected period (7/30/90)
+      document.getElementById('migrationBytes').textContent = bytesOrZero(migration.bytes_migrated);
+
+      // Cleanup stats for selected period
       const cleanup = summaryData.cleanup?.[periodKey] || {};
       document.getElementById('cleanupInvalid').textContent = (cleanup.invalid_removed || 0).toLocaleString();
       document.getElementById('cleanupMigrated').textContent = (cleanup.migrated_unpinned || 0).toLocaleString();
       document.getElementById('gcRuns').textContent = (cleanup.gc_runs || 0).toLocaleString();
-      document.getElementById('gcFreed').textContent = formatBytes(cleanup.gc_bytes_freed || 0);
-      
-      // Update system metrics
-      const system = summaryData.system || {};
-      document.getElementById('cpuAvg').textContent = (system.cpu_avg || 0).toFixed(1) + '%';
-      document.getElementById('cpuMax').textContent = (system.cpu_max || 0).toFixed(1) + '%';
-      document.getElementById('memoryAvg').textContent = (system.memory_avg || 0).toFixed(1) + '%';
-      document.getElementById('diskAvg').textContent = (system.disk_avg || 0).toFixed(1) + '%';
+      document.getElementById('gcFreed').textContent = bytesOrZero(cleanup.gc_bytes_freed);
+
+      renderSystemMetrics(summaryData.system || {});
+      renderGCHistory(summaryData.gc_history || []);
     }
 
-    // Format bytes to human-readable format
-    function formatBytes(bytes) {
-      if (bytes === 0) return '0 B';
-      const k = 1024;
-      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    function renderSystemMetrics(system) {
+      const latest = system.latest;
+      document.getElementById('metricsSampledAt').textContent = latest
+        ? `Latest sample ${formatRelativeTime(parseUTC(latest.timestamp))} (${parseUTC(latest.timestamp).toLocaleString()}) · sampled every 6 hours`
+        : 'No samples recorded yet · sampled every 6 hours';
+
+      document.getElementById('cpuLatest').textContent = pct(latest?.cpu);
+      document.getElementById('cpu24h').textContent = `${pct(system.cpu_avg_24h)} / ${pct(system.cpu_max_24h)}`;
+      document.getElementById('memoryLatest').textContent = pct(latest?.memory_percent);
+
+      const disk = document.getElementById('diskLatest');
+      disk.textContent = pct(latest?.disk_percent);
+      disk.classList.remove('warning-text', 'danger-text');
+      if (latest?.disk_percent >= 95) disk.classList.add('danger-text');
+      else if (latest?.disk_percent >= 85) disk.classList.add('warning-text');
+      document.getElementById('diskLatestSub').textContent = latest
+        ? `${latest.disk_used_gb} / ${latest.disk_total_gb} GB`
+        : '';
+    }
+
+    function renderGCHistory(runs) {
+      const tbody = document.getElementById('gcHistory');
+      tbody.replaceChildren();
+      if (runs.length === 0) {
+        const row = tbody.insertRow();
+        const cell = row.insertCell();
+        cell.colSpan = 4;
+        cell.className = 'text-muted';
+        cell.textContent = 'No GC runs recorded';
+        return;
+      }
+      for (const run of runs) {
+        const row = tbody.insertRow();
+        row.insertCell().textContent = parseUTC(run.run_at).toLocaleString();
+        row.insertCell().textContent = `${run.duration_seconds ?? 0}s`;
+        row.insertCell().textContent = bytesOrZero(run.freed_bytes);
+        const result = row.insertCell();
+        result.textContent = run.error ? `Failed: ${run.error}` : 'OK';
+        result.className = run.error ? 'danger-text' : 'success-text';
+      }
     }
   </script>
 </body>
