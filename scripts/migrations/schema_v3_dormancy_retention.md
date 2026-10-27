@@ -99,11 +99,11 @@ old `.env` setting it won't error), just unused now.
 
 ## Migration Steps
 
-1. Run `node scripts/migrateAddServingTracking.js` (or let `deploy.sh` do
+1. Deploy the updated code (workers, config)
+2. Run `node scripts/migrateAddServingTracking.js` (or let `deploy.sh` do
    it - it's in the known-migrations list there)
-2. Run `node scripts/backfillOwnerPermlink.js` once, to resolve
+3. Run `node scripts/backfillOwnerPermlink.js` once, to resolve
    owner/permlink for existing pins
-3. Deploy the updated code (workers, config)
 4. Wait for `syncLastServedWorker` to populate `last_served_at` for the
    first time (runs every 4h by default, or trigger manually)
 5. `cleanupWorker`'s next run uses the new rule automatically

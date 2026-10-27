@@ -80,7 +80,6 @@ pull_latest() {
     else
         log_info "Updated ${before:0:8} -> ${after:0:8}"
     fi
-    echo "$after"
 }
 
 install_dependencies() {
@@ -155,8 +154,11 @@ main() {
     check_root
     check_prereqs
 
+    # Called directly (not via $(...)) so set -e still aborts on a failed
+    # git step, and its log output can't leak into the commit SHA.
+    pull_latest
     local commit
-    commit=$(pull_latest)
+    commit=$(as_service_user "git rev-parse HEAD")
     install_dependencies
     run_migrations
 

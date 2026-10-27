@@ -216,22 +216,33 @@ class MongoDBClient {
    * Returns null if the video has no heatmap doc yet (never watched, or a
    * collection/field name mismatch - check HEATMAP_COLLECTION on both
    * sides if this stays null for content you know was played).
+   *
+   * Throws on Mongo errors rather than returning null: downstream, null
+   * means "fall back to added_at", i.e. eligible for dormancy cleanup, so
+   * an outage must not look like "nobody watched this".
    */
   async getLastServedAt(owner, permlink) {
-    try {
-      if (!this.connected) {
-        await this.connect();
-      }
-      const heatmaps = this.db.collection(config.mongodb.collection_heatmaps);
-      const doc = await heatmaps.findOne(
-        { owner, permlink },
-        { projection: { updatedAt: 1 } }
-      );
-      return doc?.updatedAt || null;
-    } catch (error) {
-      console.error(`Failed to get last-served time for ${owner}/${permlink}:`, error.message);
-      return null;
+    if (!this.connected) {
+      await this.connect();
     }
+    const heatmaps = this.db.collection(config.mongodb.collection_heatmaps);
+    const doc = await heatmaps.findOne(
+      { owner, permlink },
+      { projection: { updatedAt: 1 } }
+    );
+    return doc?.updatedAt || null;
+  }
+
+  /**
+   * Rough doc count of the heatmaps collection. Zero almost certainly means
+   * a misconfigured MONGODB_COLLECTION_HEATMAPS rather than "nothing has
+   * ever been watched", so the sync worker refuses to trust it.
+   */
+  async countHeatmaps() {
+    if (!this.connected) {
+      await this.connect();
+    }
+    return this.db.collection(config.mongodb.collection_heatmaps).estimatedDocumentCount();
   }
 
   /**

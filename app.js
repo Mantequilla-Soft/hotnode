@@ -123,7 +123,9 @@ function scheduleWorkers() {
   // Sync Last-Served Worker - Every RETENTION_SYNC_INTERVAL_HOURS (default 4h)
   // Pulls last_served_at from Mongo's view-heatmaps so the cleanup worker's
   // dormancy check has fresh data without a live cross-DB lookup per pin.
-  const syncHours = Math.max(1, config.retention.sync_interval_hours);
+  // `0 */N * * *` is only valid for N in 1-23; NaN or >23 would throw at
+  // schedule time and take startup down with it.
+  const syncHours = Math.min(23, Math.max(1, Number(config.retention.sync_interval_hours) || 4));
   cron.schedule(`0 */${syncHours} * * *`, async () => {
     logger.info('Running sync last-served worker...');
     try {

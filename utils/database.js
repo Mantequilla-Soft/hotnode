@@ -154,6 +154,10 @@ class Database {
   // A video still getting real traffic keeps resetting its own dormancy
   // clock (last_served_at moves forward), so popular old content never
   // shows up here regardless of age.
+  //
+  // The added_at fallback makes "no data" look dormant, so callers must only
+  // act on this after a recent clean last-served sync - cleanupWorker gates
+  // on syncLastServedWorker's LAST_SYNC_OK_KEY for exactly that reason.
   async getDormantPinsForCleanup(minAgeDays, dormantAfterDays) {
     const sql = `
       SELECT * FROM pins

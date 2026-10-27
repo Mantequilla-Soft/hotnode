@@ -3,6 +3,7 @@ const { getIPFSClient } = require('../utils/ipfs');
 const { getDiscordNotifier } = require('../utils/discord');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
+const { LAST_SYNC_OK_KEY } = require('./syncLastServedWorker');
 
 /**
  * Cleanup Worker
@@ -18,6 +19,9 @@ class CleanupWorker {
     this.discord = getDiscordNotifier();
     this.minAgeDays = config.retention.min_age_days;
     this.dormantAfterDays = config.retention.dormant_after_days;
+    // A clean last-served sync must be at least this fresh before we trust
+    // NULL/old last_served_at enough to unpin on it.
+    this.maxSyncAgeHours = Math.max(24, 3 * (Number(config.retention.sync_interval_hours) || 4));
     this.invalidRetentionDays = config.cleanup.invalid_retention_days;
   }
 
@@ -26,9 +30,24 @@ class CleanupWorker {
    * currently dormant (no real playback in dormantAfterDays) - see
    * database.js's getDormantPinsForCleanup() for why `migrated` is no
    * longer part of this decision at all.
+   *
+   * Skipped entirely unless syncLastServedWorker has recently completed a
+   * clean run: a Mongo outage or misconfigured heatmaps collection leaves
+   * last_served_at stale/NULL, which would otherwise make popular content
+   * look dormant.
    */
   async unpinDormantContent() {
     try {
+      const lastSyncOk = await this.db.getConfig(LAST_SYNC_OK_KEY);
+      const syncAgeHours = lastSyncOk ? (Date.now() - new Date(lastSyncOk).getTime()) / 3600000 : Infinity;
+      if (!(syncAgeHours <= this.maxSyncAgeHours)) {
+        const msg = lastSyncOk
+          ? `Last clean last-served sync was ${syncAgeHours.toFixed(1)}h ago (max ${this.maxSyncAgeHours}h)`
+          : 'No clean last-served sync has completed yet';
+        logger.warn(`Skipping dormant unpin: ${msg}`);
+        return { unpinned: 0, bytesFreed: 0, errors: [`Dormant unpin skipped: ${msg}`] };
+      }
+
       const pins = await this.db.getDormantPinsForCleanup(this.minAgeDays, this.dormantAfterDays);
 
       if (pins.length === 0) {

@@ -41,8 +41,6 @@ class PinDiscoveryWorker {
       let alreadyExists = 0;
       const errors = [];
 
-      await this.mongo.connect();
-
       // Process each CID
       for (const cid of ipfsCIDs) {
         try {
@@ -84,8 +82,6 @@ class PinDiscoveryWorker {
           logger.error(`Failed to process CID ${cid}:`, error.message);
         }
       }
-
-      await this.mongo.disconnect();
 
       const summary = {
         scanned: ipfsCIDs.length,
