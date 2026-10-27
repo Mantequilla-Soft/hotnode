@@ -50,6 +50,21 @@ class MongoDBClient {
   }
 
   /**
+   * Find the legacy video whose video_v2 points at this CID
+   * (ipfs://CID/manifest.m3u8 or ipfs://CID). An anchored, case-sensitive
+   * prefix regex is answered from the video_v2 index - never fetch the
+   * collection and filter client-side: it holds ~150k such docs, and loading
+   * them per lookup exhausted the service's 2GB heap. (No `|` in the
+   * regex: Mongo then can't derive a prefix range and walks the whole index.)
+   */
+  async findLegacyVideoByCID(cid) {
+    const escaped = cid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return this.db.collection(config.mongodb.collection_legacy).findOne({
+      video_v2: { $in: [`ipfs://${cid}`, new RegExp(`^ipfs://${escaped}/`)] }
+    });
+  }
+
+  /**
    * Check if a CID exists in 3speak's video collections
    * Checks both legacy (videos) and new (embed-video) collections
    * This validates that the upload is legitimate (encoder-originated)
@@ -61,24 +76,9 @@ class MongoDBClient {
       }
 
       // Check legacy videos collection (video_v2 field with ipfs:// format)
-      const legacyCollection = this.db.collection(config.mongodb.collection_legacy);
-      const legacyResult = await legacyCollection.findOne({
-        video_v2: { $exists: true, $ne: null }
-      });
-      
-      // Search through legacy videos and extract CIDs from video_v2
-      if (legacyResult) {
-        const legacyVideos = await legacyCollection.find({
-          video_v2: { $exists: true, $ne: null }
-        }).toArray();
-        
-        for (const video of legacyVideos) {
-          const extractedCID = this.extractCIDFromIPFSUrl(video.video_v2);
-          if (extractedCID === cid) {
-            console.log(`CID ${cid} found in legacy videos collection`);
-            return true;
-          }
-        }
+      if (await this.findLegacyVideoByCID(cid)) {
+        console.log(`CID ${cid} found in legacy videos collection`);
+        return true;
       }
 
       // Check new embed-video collection (manifest_cid field, direct CID)
@@ -179,16 +179,9 @@ class MongoDBClient {
     }
 
     // Check legacy videos collection
-    const legacyCollection = this.db.collection(config.mongodb.collection_legacy);
-    const legacyVideos = await legacyCollection.find({
-      video_v2: { $exists: true, $ne: null }
-    }).toArray();
-
-    for (const video of legacyVideos) {
-      const extractedCID = this.extractCIDFromIPFSUrl(video.video_v2);
-      if (extractedCID === cid) {
-        return video;
-      }
+    const legacyVideo = await this.findLegacyVideoByCID(cid);
+    if (legacyVideo) {
+      return legacyVideo;
     }
 
     // Check new embed-video collection
