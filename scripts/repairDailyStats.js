@@ -10,9 +10,9 @@
  * Counters with no surviving source (migration failures, max-retries,
  * invalid pins removed - those rows are deleted) become 0.
  *
- * Only rows with a NULL counter are touched, plus missing migration_stats
- * days that pins show had migrations - rows written correctly are left
- * alone, so it's safe to re-run.
+ * Only rows with a NULL counter (or a stale 0 bytes_migrated) are touched,
+ * plus missing migration_stats days that pins show had migrations - rows
+ * written correctly are left alone, so it's safe to re-run.
  *
  * Run once, as the service user (it owns the database):
  *   sudo -u ipfs node scripts/repairDailyStats.js
@@ -31,6 +31,11 @@ const MIGRATION_NULL = `success_count IS NULL OR failure_count IS NULL
 const CLEANUP_NULL = `invalid_pins_removed IS NULL OR migrated_pins_unpinned IS NULL
   OR bytes_freed_invalid IS NULL OR bytes_freed_migrated IS NULL
   OR gc_runs IS NULL OR gc_duration_seconds IS NULL OR gc_bytes_freed IS NULL`;
+// The old worker always recorded bytes_migrated = 0, so a day's first row
+// can hold a stale 0 that was never NULLed.
+const MIGRATION_STALE_BYTES = `bytes_migrated = 0 AND
+  (SELECT COALESCE(SUM(size_bytes), 0) FROM pins
+   WHERE migrated = 1 AND date(migrated_at) = migration_stats.date) > 0`;
 
 async function repair() {
   const db = new sqlite3.Database(DB_PATH);
@@ -45,7 +50,7 @@ async function repair() {
                           WHERE migrated = 1 AND date(migrated_at) = migration_stats.date),
         failure_count = COALESCE(failure_count, 0),
         max_retries_reached = COALESCE(max_retries_reached, 0)
-      WHERE ${MIGRATION_NULL}
+      WHERE ${MIGRATION_NULL} OR ${MIGRATION_STALE_BYTES}
     `);
 
     const migrationAdded = await run(db, `

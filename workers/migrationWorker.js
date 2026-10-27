@@ -206,9 +206,11 @@ class MigrationWorker {
             notes: error.message
           });
 
-          // Notify if max retries reached
+          // Notify if max retries reached. The pin stays eligible and keeps
+          // failing on later runs, so only the run that crosses the limit
+          // counts it.
           if (newRetryCount >= this.maxRetries) {
-            maxRetriesReached++;
+            if (newRetryCount === this.maxRetries) maxRetriesReached++;
             logger.error(`Max retries reached for ${pin.cid}`);
           }
         }
