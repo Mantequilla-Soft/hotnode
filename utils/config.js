@@ -57,7 +57,15 @@ const config = {
   supernode: {
     api: required('SUPERNODE_API'),
     verify_endpoint: '/api/v0/pin/ls',
-    timeout_ms: optionalInt('SUPERNODE_TIMEOUT_MS', 30000)
+    timeout_ms: optionalInt('SUPERNODE_TIMEOUT_MS', 30000),
+    // Separate from timeout_ms: this is only for the post-pin verification
+    // check in the migration worker, which retries in the background (a
+    // slow check just costs a retry cycle, not a stuck admin UI request).
+    // Supernode storage can be I/O-contended and a plain `pin ls` lookup
+    // has been directly observed taking minutes under load; 30s was tight
+    // enough that some genuinely-successful pins were being reported as
+    // failed migrations.
+    verify_timeout_ms: optionalInt('SUPERNODE_VERIFY_TIMEOUT_MS', 120000)
   },
   
   mongodb: {

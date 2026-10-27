@@ -64,7 +64,7 @@ class MigrationWorker {
         `${this.supernodeAPI}/api/v0/pin/ls?arg=${cid}`,
         null,
         {
-          timeout: config.supernode.timeout_ms || 30000
+          timeout: config.supernode.verify_timeout_ms || 120000
         }
       );
 
