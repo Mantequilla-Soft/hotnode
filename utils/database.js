@@ -440,6 +440,23 @@ class Database {
     return this.all(sql, [hours]);
   }
 
+  // Stats page: pins still held, and how many of those a real viewer
+  // played recently (last_served_at, synced from the player's heatmaps).
+  async getServingStats(days = 90) {
+    const sql = `
+      SELECT
+        SUM(CASE WHEN unpinned = 0 THEN 1 ELSE 0 END) as active,
+        SUM(CASE WHEN unpinned = 0 AND julianday('now') - julianday(last_served_at) <= ? THEN 1 ELSE 0 END) as watched,
+        SUM(CASE WHEN unpinned = 0 AND julianday('now') - julianday(last_served_at) <= ? THEN size_bytes ELSE 0 END) as watched_bytes
+      FROM pins
+    `;
+    return this.get(sql, [days, days]);
+  }
+
+  async getLatestSystemMetrics() {
+    return this.get('SELECT * FROM system_metrics ORDER BY timestamp DESC LIMIT 1');
+  }
+
   async getSystemMetricsAverage(hours = 1) {
     const sql = `
       SELECT 
