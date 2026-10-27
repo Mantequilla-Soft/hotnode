@@ -1,0 +1,14 @@
+[Unit]
+Description=Check for new ipfs-hotnode commits on main every 2 minutes
+Documentation=file:/usr/local/sbin/hotnode-deploy
+
+[Timer]
+OnBootSec=5min
+# A no-op tick is one `git fetch` over HTTPS - cheap enough to poll often,
+# and needs no inbound webhook or GitHub credentials on this host.
+OnUnitActiveSec=2min
+RandomizedDelaySec=20s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

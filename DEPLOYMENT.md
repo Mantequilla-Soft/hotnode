@@ -399,17 +399,68 @@ ls -la /opt/ipfs-hotnode/database/
 
 ### Update Service
 
+Deploys go through `scripts/deploy.sh`. It fetches `main` from GitHub, runs
+`npm ci` only if `package.json`/`package-lock.json` changed, runs schema
+migrations, restarts `ipfs-hotnode`, and **rolls back to the previously
+deployed commit** if any step fails or the service doesn't stay up. Every
+deploy, failure and rollback is posted to Discord.
+
 ```bash
-# Pull latest changes
-cd /opt/ipfs-hotnode
-sudo -u ipfs git pull
-
-# Install new dependencies
-sudo -u ipfs npm install --production
-
-# Restart service
-sudo systemctl restart ipfs-hotnode
+sudo /usr/local/sbin/hotnode-deploy        # or: sudo ./scripts/deploy.sh [branch]
 ```
+
+### Auto-deploy (continuous deployment)
+
+`hotnode-autodeploy.timer` runs the deploy every 2 minutes, so a merge to
+`main` is live within ~2 minutes. It **polls** GitHub over HTTPS rather than
+receiving a webhook, so the host needs no inbound access and no GitHub
+credentials (the repo is public).
+
+One-time setup:
+
+```bash
+cd /opt/ipfs-hotnode
+sudo install -o root -g root -m 755 scripts/deploy.sh /usr/local/sbin/hotnode-deploy
+sudo install -o root -g root -m 644 scripts/hotnode-autodeploy.service scripts/hotnode-autodeploy.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Optional: if the checkout's current commit is already what the service is
+# running, record it as deployed so the first tick doesn't redeploy it
+# (otherwise it does one full deploy: npm ci + migrations + restart).
+sudo mkdir -p /var/lib/hotnode-deploy
+git rev-parse HEAD | sudo tee /var/lib/hotnode-deploy/deployed_sha
+
+sudo systemctl enable --now hotnode-autodeploy.timer
+```
+
+Watch it: `journalctl -u hotnode-autodeploy -f` (or `-t hotnode-deploy`).
+Pause it: `sudo systemctl stop hotnode-autodeploy.timer`.
+
+How it behaves:
+
+- **Deployed vs. checked-out.** The last successfully deployed commit is
+  recorded in `/var/lib/hotnode-deploy/deployed_sha`; the timer deploys
+  whenever `origin/main` differs from it. On the first run (no record yet)
+  it deploys once, even if the checkout already matches.
+- **Failed commits aren't retried in a loop.** A commit that fails is rolled
+  back and recorded in `failed_sha`; the timer skips it until `main` moves
+  (i.e. the fix is merged). A manual `sudo hotnode-deploy` always retries.
+- **It never deploys over local work.** If `/opt/ipfs-hotnode` isn't on a
+  clean `main` (another branch checked out, modified tracked files, or local
+  commits that aren't on GitHub) it waits, posts one Discord warning, and
+  deploys as soon as the checkout is clean. Do development in a separate
+  clone, not in the live checkout.
+- **Root never runs repo code.** The timer runs the root-owned copy in
+  `/usr/local/sbin`, not `scripts/deploy.sh`, since the checkout is writable
+  by a non-root user. git and npm run as the checkout's owner; migrations
+  and notifications run as `ipfs`. **A change to `scripts/deploy.sh` only
+  takes effect after re-running the `install` line above** (the deploy log
+  warns when the two copies differ).
+- One deploy at a time (`flock`); a manual run while the timer is
+  deploying just exits.
+
+Rollback restores code and dependencies only. Schema migrations are
+additive, so the previous code runs against the newer schema.
 
 ### Manual Garbage Collection
 

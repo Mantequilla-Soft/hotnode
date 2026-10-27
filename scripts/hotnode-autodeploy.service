@@ -1,0 +1,26 @@
+[Unit]
+Description=Deploy ipfs-hotnode when origin/main moves
+Documentation=file:/usr/local/sbin/hotnode-deploy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Must live in a root-owned path: this runs as root, and /opt/ipfs-hotnode
+# is writable by the 'meno' user. Install with
+#   sudo install -o root -g root -m 755 \
+#       /opt/ipfs-hotnode/scripts/deploy.sh /usr/local/sbin/hotnode-deploy
+# (and re-run that whenever scripts/deploy.sh changes - it logs a warning
+# after a deploy when the two differ).
+ExecStart=/usr/local/sbin/hotnode-deploy --auto
+
+# Needs root for `systemctl restart ipfs-hotnode`; git/npm/node inside the
+# script drop to the checkout owner / service user.
+User=root
+
+# npm ci on a lockfile change + migrations + restart checks.
+TimeoutStartSec=15min
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hotnode-deploy
