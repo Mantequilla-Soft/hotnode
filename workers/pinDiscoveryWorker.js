@@ -59,7 +59,9 @@ class PinDiscoveryWorker {
           // has an owner/permlink to check last-served activity against.
           // Left NULL if this CID isn't a known video (e.g. something
           // pinned outside the normal upload flow) - that's fine, it just
-          // means retention falls back to added_at for it.
+          // means retention falls back to added_at for it. A Mongo error
+          // throws here, before insertPin, so the CID is retried next run
+          // instead of being stored with a NULL identity.
           const video = await this.mongo.getVideoMetadata(cid);
           const owner = video?.owner || null;
           const permlink = video ? (video.permlink || video.hive_permlink || null) : null;

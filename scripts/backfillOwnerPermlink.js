@@ -7,7 +7,10 @@
  *
  * Safe to re-run: only touches pins where owner/permlink are still both
  * NULL, so anything already resolved (or genuinely unresolvable, like a
- * manually-pinned arbitrary CID) is left alone.
+ * manually-pinned arbitrary CID) is left alone. A Mongo lookup error aborts
+ * the run (non-zero exit) rather than miscounting pins as unresolved - just
+ * re-run it once Mongo is reachable. Also the repair path for pins that
+ * discovery stored with a NULL identity during an earlier Mongo outage.
  *
  * Run once: node scripts/backfillOwnerPermlink.js
  */

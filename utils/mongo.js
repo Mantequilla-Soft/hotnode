@@ -169,36 +169,33 @@ class MongoDBClient {
   /**
    * Get video metadata by CID (optional, for enrichment)
    */
+  // Returns null only when the CID genuinely isn't a known video. Mongo
+  // errors throw: callers store a null result as a NULL owner/permlink, which
+  // the last-served sync never tracks, so a transient outage must not be
+  // recorded as "not a video".
   async getVideoMetadata(cid) {
-    try {
-      if (!this.connected) {
-        await this.connect();
-      }
-
-      // Check legacy videos collection
-      const legacyCollection = this.db.collection(config.mongodb.collection_legacy);
-      const legacyVideos = await legacyCollection.find({
-        video_v2: { $exists: true, $ne: null }
-      }).toArray();
-      
-      for (const video of legacyVideos) {
-        const extractedCID = this.extractCIDFromIPFSUrl(video.video_v2);
-        if (extractedCID === cid) {
-          return video;
-        }
-      }
-
-      // Check new embed-video collection
-      const newCollection = this.db.collection(config.mongodb.collection_new);
-      const result = await newCollection.findOne({
-        manifest_cid: cid
-      });
-
-      return result;
-    } catch (error) {
-      console.error('MongoDB get video metadata failed:', error.message);
-      return null;
+    if (!this.connected) {
+      await this.connect();
     }
+
+    // Check legacy videos collection
+    const legacyCollection = this.db.collection(config.mongodb.collection_legacy);
+    const legacyVideos = await legacyCollection.find({
+      video_v2: { $exists: true, $ne: null }
+    }).toArray();
+
+    for (const video of legacyVideos) {
+      const extractedCID = this.extractCIDFromIPFSUrl(video.video_v2);
+      if (extractedCID === cid) {
+        return video;
+      }
+    }
+
+    // Check new embed-video collection
+    const newCollection = this.db.collection(config.mongodb.collection_new);
+    return newCollection.findOne({
+      manifest_cid: cid
+    });
   }
 
   /**
