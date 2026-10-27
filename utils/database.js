@@ -63,15 +63,41 @@ class Database {
   // Pin management methods
   async insertPin(pin) {
     const sql = `
-      INSERT OR IGNORE INTO pins (cid, size_bytes, status, notes)
-      VALUES (?, ?, ?, ?)
+      INSERT OR IGNORE INTO pins (cid, size_bytes, status, notes, owner, permlink)
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
     return this.run(sql, [
       pin.cid,
       pin.size_bytes || null,
       pin.status || 'pending',
-      pin.notes || null
+      pin.notes || null,
+      pin.owner || null,
+      pin.permlink || null
     ]);
+  }
+
+  // Pins that exist locally but haven't been matched to a video identity yet
+  // (added before this migration, or the Mongo lookup failed/hadn't run at
+  // insert time). Used by scripts/backfillOwnerPermlink.js.
+  async getPinsMissingOwner() {
+    const sql = `SELECT cid FROM pins WHERE owner IS NULL AND permlink IS NULL`;
+    return this.all(sql);
+  }
+
+  // Pins with a known video identity, for syncLastServedWorker to refresh
+  // last_served_at from Mongo. Unpinned content is excluded - no point
+  // tracking activity for something we no longer have.
+  async getPinsForServedSync() {
+    const sql = `
+      SELECT cid, owner, permlink FROM pins
+      WHERE owner IS NOT NULL AND permlink IS NOT NULL AND unpinned = 0
+    `;
+    return this.all(sql);
+  }
+
+  async updatePinServedAt(cid, lastServedAt) {
+    const sql = `UPDATE pins SET last_served_at = ? WHERE cid = ?`;
+    return this.run(sql, [lastServedAt, cid]);
   }
 
   async getPin(cid) {
@@ -111,16 +137,37 @@ class Database {
     return this.all(sql, [startDays, limit]);
   }
 
-  async getMigratedPinsForCleanup(deleteDays) {
+  // Replaces getMigratedPinsForCleanup. Deliberately does NOT check
+  // `migrated` - retention is now about age + activity, not where else a
+  // copy exists, so this keeps working once migration goes away entirely.
+  //
+  // Both conditions must hold:
+  //   - old enough (minAgeDays since upload): a guaranteed minimum lifetime,
+  //     so a video nobody's watched YET isn't evicted before it's had a
+  //     fair chance.
+  //   - dormant (no activity in dormantAfterDays): COALESCE falls back to
+  //     added_at when last_served_at is still NULL (never synced, or never
+  //     actually watched) - untracked content ages out on the same clock as
+  //     tracked content instead of being treated as either permanently safe
+  //     or immediately eligible.
+  //
+  // A video still getting real traffic keeps resetting its own dormancy
+  // clock (last_served_at moves forward), so popular old content never
+  // shows up here regardless of age.
+  //
+  // The added_at fallback makes "no data" look dormant, so callers must only
+  // act on this after a recent clean last-served sync - cleanupWorker gates
+  // on syncLastServedWorker's LAST_SYNC_OK_KEY for exactly that reason.
+  async getDormantPinsForCleanup(minAgeDays, dormantAfterDays) {
     const sql = `
-      SELECT * FROM pins 
-      WHERE status = 'valid' 
-      AND migrated = 1 
+      SELECT * FROM pins
+      WHERE status = 'valid'
       AND unpinned = 0
       AND julianday('now') - julianday(added_at) >= ?
+      AND julianday('now') - julianday(COALESCE(last_served_at, added_at)) >= ?
       ORDER BY added_at ASC
     `;
-    return this.all(sql, [deleteDays]);
+    return this.all(sql, [minAgeDays, dormantAfterDays]);
   }
 
   async getInvalidPinsForCleanup(retentionDays) {

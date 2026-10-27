@@ -73,6 +73,11 @@ const config = {
     database: optional('MONGODB_DATABASE', 'threespeak'),
     collection_legacy: optional('MONGODB_COLLECTION_LEGACY', 'videos'),
     collection_new: optional('MONGODB_COLLECTION_NEW', 'embed-video'),
+    // Owned by snapievideoplayer's watchTracking.js (WATCH_HEATMAP_COLLECTION
+    // there) - this must match its collection name or getLastServedAt()
+    // silently finds nothing. Separate env var since the two apps don't
+    // necessarily share a .env; same default value on both sides.
+    collection_heatmaps: optional('MONGODB_COLLECTION_HEATMAPS', 'view-heatmaps'),
     timeout_ms: optionalInt('MONGODB_TIMEOUT_MS', 5000)
   },
   
@@ -99,6 +104,22 @@ const config = {
     // and abandoning the call then just leaked another lock holder. Keep it
     // generous so a healthy-but-busy node is never hung up on.
     pin_rm_timeout_ms: optionalInt('IPFS_PIN_RM_TIMEOUT_MS', 120000)
+  },
+
+  /**
+   * Replaces the old "unpin once migrated + N days" rule. Unpinning now
+   * needs BOTH conditions true - a minimum guaranteed lifetime regardless of
+   * activity, AND genuine current inactivity - so a video that's still
+   * being watched never gets dropped just because it's old, and a brand
+   * new upload with a quiet first day isn't evicted before it's had a fair
+   * chance. Deliberately decoupled from `migrated` - this needs to keep
+   * working once migration to a supernode isn't a thing anymore.
+   */
+  retention: {
+    min_age_days: optionalInt('RETENTION_MIN_AGE_DAYS', 30),
+    dormant_after_days: optionalInt('RETENTION_DORMANT_AFTER_DAYS', 7),
+    // How often syncLastServedWorker refreshes last_served_at from Mongo.
+    sync_interval_hours: optionalInt('RETENTION_SYNC_INTERVAL_HOURS', 4)
   },
   
   stats: {

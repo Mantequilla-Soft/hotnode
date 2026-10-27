@@ -3,6 +3,7 @@ const { getIPFSClient } = require('../utils/ipfs');
 const { getDiscordNotifier } = require('../utils/discord');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
+const { LAST_SYNC_OK_KEY } = require('./syncLastServedWorker');
 
 /**
  * Cleanup Worker
@@ -16,23 +17,45 @@ class CleanupWorker {
     this.db = getDatabase();
     this.ipfs = getIPFSClient();
     this.discord = getDiscordNotifier();
-    this.deleteDays = config.migration.delete_after_days;
+    this.minAgeDays = config.retention.min_age_days;
+    this.dormantAfterDays = config.retention.dormant_after_days;
+    // A clean last-served sync must be at least this fresh before we trust
+    // NULL/old last_served_at enough to unpin on it.
+    this.maxSyncAgeHours = Math.max(24, 3 * (Number(config.retention.sync_interval_hours) || 4));
     this.invalidRetentionDays = config.cleanup.invalid_retention_days;
   }
 
   /**
-   * Unpin migrated content (older than 7 days)
+   * Unpin content that is both old enough (minAgeDays since upload) AND
+   * currently dormant (no real playback in dormantAfterDays) - see
+   * database.js's getDormantPinsForCleanup() for why `migrated` is no
+   * longer part of this decision at all.
+   *
+   * Skipped entirely unless syncLastServedWorker has recently completed a
+   * clean run: a Mongo outage or misconfigured heatmaps collection leaves
+   * last_served_at stale/NULL, which would otherwise make popular content
+   * look dormant.
    */
-  async unpinMigratedContent() {
+  async unpinDormantContent() {
     try {
-      const pins = await this.db.getMigratedPinsForCleanup(this.deleteDays);
-      
+      const lastSyncOk = await this.db.getConfig(LAST_SYNC_OK_KEY);
+      const syncAgeHours = lastSyncOk ? (Date.now() - new Date(lastSyncOk).getTime()) / 3600000 : Infinity;
+      if (!(syncAgeHours <= this.maxSyncAgeHours)) {
+        const msg = lastSyncOk
+          ? `Last clean last-served sync was ${syncAgeHours.toFixed(1)}h ago (max ${this.maxSyncAgeHours}h)`
+          : 'No clean last-served sync has completed yet';
+        logger.warn(`Skipping dormant unpin: ${msg}`);
+        return { unpinned: 0, bytesFreed: 0, errors: [`Dormant unpin skipped: ${msg}`] };
+      }
+
+      const pins = await this.db.getDormantPinsForCleanup(this.minAgeDays, this.dormantAfterDays);
+
       if (pins.length === 0) {
-        logger.info('No migrated pins to unpin');
+        logger.info('No dormant pins to unpin');
         return { unpinned: 0, bytesFreed: 0, errors: [] };
       }
 
-      logger.info(`Found ${pins.length} migrated pins to unpin`);
+      logger.info(`Found ${pins.length} dormant pins to unpin`);
 
       let unpinned = 0;
       let bytesFreed = 0;
@@ -51,17 +74,17 @@ class CleanupWorker {
 
           unpinned++;
           bytesFreed += pin.size_bytes || 0;
-          logger.info(`Unpinned migrated: ${pin.cid}`);
+          logger.info(`Unpinned dormant: ${pin.cid} (owner=${pin.owner || 'unknown'})`);
         } catch (error) {
           errors.push(`${pin.cid}: ${error.message}`);
           logger.error(`Failed to unpin ${pin.cid}:`, error.message);
         }
       }
 
-      logger.info(`Unpinned ${unpinned} migrated pins, freed ${bytesFreed} bytes`);
+      logger.info(`Unpinned ${unpinned} dormant pins, freed ${bytesFreed} bytes`);
       return { unpinned, bytesFreed, errors };
     } catch (error) {
-      logger.error('Failed to unpin migrated content:', error);
+      logger.error('Failed to unpin dormant content:', error);
       throw error;
     }
   }
@@ -217,11 +240,14 @@ class CleanupWorker {
     };
 
     try {
-      // Unpin migrated content
-      const migratedResult = await this.unpinMigratedContent();
-      summary.migrated_unpinned = migratedResult.unpinned;
-      summary.bytes_freed_migrated = migratedResult.bytesFreed || 0;
-      summary.errors.push(...migratedResult.errors);
+      // Unpin dormant content (old enough AND no recent real playback -
+      // see unpinDormantContent(). Field names below (migrated_*) are kept
+      // as-is to avoid an unrelated cleanup_stats schema migration; they
+      // now mean "dormant", not "migrated".
+      const dormantResult = await this.unpinDormantContent();
+      summary.migrated_unpinned = dormantResult.unpinned;
+      summary.bytes_freed_migrated = dormantResult.bytesFreed || 0;
+      summary.errors.push(...dormantResult.errors);
 
       // Cleanup invalid content
       const invalidResult = await this.cleanupInvalidContent();

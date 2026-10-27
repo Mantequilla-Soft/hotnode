@@ -169,36 +169,77 @@ class MongoDBClient {
   /**
    * Get video metadata by CID (optional, for enrichment)
    */
+  // Returns null only when the CID genuinely isn't a known video. Mongo
+  // errors throw: callers store a null result as a NULL owner/permlink, which
+  // the last-served sync never tracks, so a transient outage must not be
+  // recorded as "not a video".
   async getVideoMetadata(cid) {
-    try {
-      if (!this.connected) {
-        await this.connect();
-      }
-
-      // Check legacy videos collection
-      const legacyCollection = this.db.collection(config.mongodb.collection_legacy);
-      const legacyVideos = await legacyCollection.find({
-        video_v2: { $exists: true, $ne: null }
-      }).toArray();
-      
-      for (const video of legacyVideos) {
-        const extractedCID = this.extractCIDFromIPFSUrl(video.video_v2);
-        if (extractedCID === cid) {
-          return video;
-        }
-      }
-
-      // Check new embed-video collection
-      const newCollection = this.db.collection(config.mongodb.collection_new);
-      const result = await newCollection.findOne({
-        manifest_cid: cid
-      });
-
-      return result;
-    } catch (error) {
-      console.error('MongoDB get video metadata failed:', error.message);
-      return null;
+    if (!this.connected) {
+      await this.connect();
     }
+
+    // Check legacy videos collection
+    const legacyCollection = this.db.collection(config.mongodb.collection_legacy);
+    const legacyVideos = await legacyCollection.find({
+      video_v2: { $exists: true, $ne: null }
+    }).toArray();
+
+    for (const video of legacyVideos) {
+      const extractedCID = this.extractCIDFromIPFSUrl(video.video_v2);
+      if (extractedCID === cid) {
+        return video;
+      }
+    }
+
+    // Check new embed-video collection
+    const newCollection = this.db.collection(config.mongodb.collection_new);
+    return newCollection.findOne({
+      manifest_cid: cid
+    });
+  }
+
+  /**
+   * Last time a video was actually served to a real viewer, per the
+   * video player's own tracking (snapievideoplayer's watchTracking.js).
+   *
+   * view-heatmaps has one doc per (owner, permlink), and its `updatedAt` is
+   * bumped by watchStart on every genuine watch and by watchBeat on real
+   * playback progress - crucially, watchStart explicitly skips this for
+   * placeholder plays (deleted/encoding/failed), so a dead video's
+   * placeholder view never counts as "still being watched" here. This is
+   * the one true source for "is this content still in demand", so hotnode
+   * doesn't need its own separate view-tracking.
+   *
+   * Returns null if the video has no heatmap doc yet (never watched, or a
+   * collection/field name mismatch - check HEATMAP_COLLECTION on both
+   * sides if this stays null for content you know was played).
+   *
+   * Throws on Mongo errors rather than returning null: downstream, null
+   * means "fall back to added_at", i.e. eligible for dormancy cleanup, so
+   * an outage must not look like "nobody watched this".
+   */
+  async getLastServedAt(owner, permlink) {
+    if (!this.connected) {
+      await this.connect();
+    }
+    const heatmaps = this.db.collection(config.mongodb.collection_heatmaps);
+    const doc = await heatmaps.findOne(
+      { owner, permlink },
+      { projection: { updatedAt: 1 } }
+    );
+    return doc?.updatedAt || null;
+  }
+
+  /**
+   * Rough doc count of the heatmaps collection. Zero almost certainly means
+   * a misconfigured MONGODB_COLLECTION_HEATMAPS rather than "nothing has
+   * ever been watched", so the sync worker refuses to trust it.
+   */
+  async countHeatmaps() {
+    if (!this.connected) {
+      await this.connect();
+    }
+    return this.db.collection(config.mongodb.collection_heatmaps).estimatedDocumentCount();
   }
 
   /**
