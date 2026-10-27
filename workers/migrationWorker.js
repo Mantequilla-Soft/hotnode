@@ -139,6 +139,8 @@ class MigrationWorker {
 
       let succeeded = 0;
       let failed = 0;
+      let bytesMigrated = 0;
+      let maxRetriesReached = 0;
       const errors = [];
 
       for (const pin of pins) {
@@ -159,6 +161,7 @@ class MigrationWorker {
             });
 
             succeeded++;
+            bytesMigrated += pin.size_bytes || 0;
             logger.info(`✓ Marked as migrated (already existed): ${pin.cid}`);
           } else {
             // Pin doesn't exist, add it to supernode
@@ -179,6 +182,7 @@ class MigrationWorker {
               });
 
               succeeded++;
+              bytesMigrated += pin.size_bytes || 0;
               logger.info(`✓ Successfully migrated: ${pin.cid}`);
             } else {
               throw new Error('Supernode verification failed');
@@ -202,8 +206,11 @@ class MigrationWorker {
             notes: error.message
           });
 
-          // Notify if max retries reached
+          // Notify if max retries reached. The pin stays eligible and keeps
+          // failing on later runs, so only the run that crosses the limit
+          // counts it.
           if (newRetryCount >= this.maxRetries) {
+            if (newRetryCount === this.maxRetries) maxRetriesReached++;
             logger.error(`Max retries reached for ${pin.cid}`);
           }
         }
@@ -218,6 +225,8 @@ class MigrationWorker {
         processed: pins.length,
         succeeded,
         failed,
+        bytesMigrated,
+        maxRetriesReached,
         errors: errors.slice(0, 5) // Limit errors in return
       };
 
@@ -252,20 +261,11 @@ class MigrationWorker {
       // Update last run time
       await this.db.setConfig('last_migration_run', new Date().toISOString());
       
-      // Calculate total bytes migrated for today
-      const pins = await this.db.getValidPinsForMigration(this.startAfterDays, this.batchSize);
-      let bytesMigrated = 0;
-      let maxRetriesReached = 0;
-      
-      for (const pin of pins) {
-        if (pin.migrated) {
-          bytesMigrated += pin.size_bytes || 0;
-        }
-        if ((pin.retry_count || 0) >= this.maxRetries) {
-          maxRetriesReached++;
-        }
-      }
-      
+      // Counted during the run itself. (This used to re-query the next
+      // candidate batch afterwards - all migrated = 0, so bytes were always
+      // 0, and max-retries re-counted the same pins every run.)
+      const { bytesMigrated = 0, maxRetriesReached = 0 } = result;
+
       // Update migration stats for today
       const today = new Date().toISOString().split('T')[0];
       await this.db.updateMigrationStats(today, {

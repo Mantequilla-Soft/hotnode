@@ -333,21 +333,17 @@ class Database {
   }
 
   // Migration stats methods
+  // Adds `updates` onto the day's counters. The increment comes from
+  // `excluded.<col>` (the row we tried to insert) rather than extra `?`
+  // placeholders - those were never bound, so SQLite used NULL and every
+  // run after the first each day reset the row to NULL. COALESCE also heals
+  // rows already NULLed that way.
   async updateMigrationStats(date, updates) {
-    const fields = [];
-    const values = [];
-    
-    for (const [key, value] of Object.entries(updates)) {
-      fields.push(`${key} = ${key} + ?`);
-      values.push(value);
-    }
-    
-    values.push(date);
-    
+    const keys = Object.keys(updates);
     const sql = `
-      INSERT INTO migration_stats (date, ${Object.keys(updates).join(', ')})
-      VALUES (?, ${Object.keys(updates).map(() => '?').join(', ')})
-      ON CONFLICT(date) DO UPDATE SET ${fields.join(', ')}
+      INSERT INTO migration_stats (date, ${keys.join(', ')})
+      VALUES (?, ${keys.map(() => '?').join(', ')})
+      ON CONFLICT(date) DO UPDATE SET ${keys.map((k) => `${k} = COALESCE(${k}, 0) + excluded.${k}`).join(', ')}
     `;
     return this.run(sql, [date, ...Object.values(updates)]);
   }
@@ -375,21 +371,17 @@ class Database {
   }
 
   // Cleanup stats methods
+  // Adds `updates` onto the day's counters. The increment comes from
+  // `excluded.<col>` (the row we tried to insert) rather than extra `?`
+  // placeholders - those were never bound, so SQLite used NULL and every
+  // run after the first each day reset the row to NULL. COALESCE also heals
+  // rows already NULLed that way.
   async updateCleanupStats(date, updates) {
-    const fields = [];
-    const values = [];
-    
-    for (const [key, value] of Object.entries(updates)) {
-      fields.push(`${key} = ${key} + ?`);
-      values.push(value);
-    }
-    
-    values.push(date);
-    
+    const keys = Object.keys(updates);
     const sql = `
-      INSERT INTO cleanup_stats (date, ${Object.keys(updates).join(', ')})
-      VALUES (?, ${Object.keys(updates).map(() => '?').join(', ')})
-      ON CONFLICT(date) DO UPDATE SET ${fields.join(', ')}
+      INSERT INTO cleanup_stats (date, ${keys.join(', ')})
+      VALUES (?, ${keys.map(() => '?').join(', ')})
+      ON CONFLICT(date) DO UPDATE SET ${keys.map((k) => `${k} = COALESCE(${k}, 0) + excluded.${k}`).join(', ')}
     `;
     return this.run(sql, [date, ...Object.values(updates)]);
   }
