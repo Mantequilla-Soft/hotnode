@@ -109,6 +109,9 @@ CLEANUP_INVALID_RETENTION_DAYS=2
 HEALTH_DISK_WARNING_PERCENT=80
 HEALTH_DISK_CRITICAL_PERCENT=90
 HEALTH_OVERDUE_ALERT_REPO_PERCENT=30  # hourly overdue-pin alert above this repo usage
+HEALTH_CAPACITY_STOP_PERCENT=80       # stop accepting uploads at this repo usage
+HEALTH_CAPACITY_RESUME_PERCENT=75     # ...and resume below this
+# These are defaults: the Settings page overrides all five health thresholds at runtime.
 ```
 
 See `.env.example` for all available options with descriptions.
@@ -149,7 +152,9 @@ GET http://your-server:3100/health
 ```
 
 Response includes:
-- Enabled status
+- Enabled status (`false` when manually disabled *or* when the repo is over the
+  capacity cutoff; `reason` says which: `"disabled"` or `"capacity"`)
+- Capacity cutoff state and thresholds (`capacity.paused`, `stop_percent`, `resume_percent`)
 - Disk usage percentage
 - Bandwidth metrics (24h)
 - Pin counts (total, pending, overdue)

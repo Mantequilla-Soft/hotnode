@@ -19,6 +19,8 @@ beforeEach(() => {
   worker.db = {
     overdue: 213,
     async getPinStats() { return { total: 1788, overdue: this.overdue }; },
+    config: {},
+    async getConfig(key) { return this.config[key] ?? null; },
     async get() { return { age: 12.7 }; }
   };
   worker.ipfs = {
@@ -70,6 +72,12 @@ describe('checkOverduePins', () => {
     } finally {
       config.health.overdue_alert_repo_percent = original;
     }
+  });
+
+  test('a Settings page override beats the .env default', async () => {
+    worker.db.config.overdue_alert_repo_percent = '15';
+    await worker.checkOverduePins();
+    assert.deepEqual(alerts, [[213, 12, 18]]);
   });
 
   test('repo usage unreadable: alerts anyway, without a usage figure', async () => {

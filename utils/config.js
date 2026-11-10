@@ -143,7 +143,13 @@ const config = {
     disk_critical_percent: optionalInt('HEALTH_DISK_CRITICAL_PERCENT', 90),
     // Overdue pins never stop ingestion; once the repo is at least this full
     // (RepoSize / StorageMax) the backlog is alerted on every hour.
-    overdue_alert_repo_percent: optionalInt('HEALTH_OVERDUE_ALERT_REPO_PERCENT', 30)
+    overdue_alert_repo_percent: optionalInt('HEALTH_OVERDUE_ALERT_REPO_PERCENT', 30),
+    // Ingestion cutoff: at capacity_stop_percent GET /health reports
+    // enabled=false so the Traffic Director stops routing uploads here; it
+    // resumes below capacity_resume_percent. These are the defaults; the
+    // Settings page overrides all five thresholds (see utils/capacity.js).
+    capacity_stop_percent: optionalInt('HEALTH_CAPACITY_STOP_PERCENT', 80),
+    capacity_resume_percent: optionalInt('HEALTH_CAPACITY_RESUME_PERCENT', 75)
   },
   
   logging: {

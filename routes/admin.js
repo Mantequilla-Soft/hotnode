@@ -4,6 +4,7 @@ const { getDatabase } = require('../utils/database');
 const { getIPFSClient } = require('../utils/ipfs');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
+const { getThresholds, isPaused } = require('../utils/capacity');
 
 /**
  * Admin Dashboard Routes
@@ -54,8 +55,13 @@ router.get('/', async (req, res) => {
     const lastMigration = await db.getConfig('last_migration_run');
     const lastStats = await db.getConfig('last_stats_run');
     
+    const thresholds = await getThresholds(db);
+    const capacityPaused = await isPaused(db);
+    
     res.render('dashboard', {
       enabled,
+      capacityPaused,
+      thresholds,
       pinStats,
       repoStats,
       recentEvents,
@@ -159,8 +165,13 @@ router.get('/settings', async (req, res) => {
       logger.error('Failed to load GC logs:', error);
     }
     
+    const thresholds = await getThresholds(db);
+    const capacityPaused = await isPaused(db);
+    
     res.render('settings', {
       dbConfig,
+      thresholds,
+      capacityPaused,
       gcLogs,
       isAuthenticated: req.session.authenticated || false
     });

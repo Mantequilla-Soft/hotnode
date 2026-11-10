@@ -63,3 +63,24 @@ describe('getMigrationRateConfig', () => {
     assert.deepEqual(cfg, { mode: 'normal', maxDaily: null, batchSize: 30 });
   });
 });
+
+describe('health capacity cutoff defaults', () => {
+  afterEach(() => {
+    delete process.env.HEALTH_CAPACITY_STOP_PERCENT;
+    delete process.env.HEALTH_CAPACITY_RESUME_PERCENT;
+  });
+
+  test('stop at 80, resume below 75', () => {
+    const { health } = loadFresh('utils/config');
+    assert.equal(health.capacity_stop_percent, 80);
+    assert.equal(health.capacity_resume_percent, 75);
+  });
+
+  test('read from the environment', () => {
+    process.env.HEALTH_CAPACITY_STOP_PERCENT = '85';
+    process.env.HEALTH_CAPACITY_RESUME_PERCENT = '70';
+    const { health } = loadFresh('utils/config');
+    assert.equal(health.capacity_stop_percent, 85);
+    assert.equal(health.capacity_resume_percent, 70);
+  });
+});

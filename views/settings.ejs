@@ -45,6 +45,46 @@
       </form>
     </div>
 
+    <!-- Capacity & Alert Thresholds -->
+    <div class="card">
+      <h3>Capacity &amp; Alert Thresholds</h3>
+      <p class="text-muted">All values are a percent of the IPFS repo (RepoSize / StorageMax).</p>
+      <% if (capacityPaused) { %>
+        <p class="danger-text"><strong>The cutoff is active: this node is not accepting uploads right now.</strong></p>
+      <% } %>
+      <form id="capacityForm">
+        <div class="threshold-grid">
+          <h4>Ingestion cutoff</h4>
+          <div class="form-group">
+            <label for="stopPercent">Stop accepting uploads at (%):</label>
+            <input type="number" id="stopPercent" min="1" max="100" step="1" required value="<%= thresholds.stop_percent %>">
+            <small class="text-muted">/health reports enabled=false, so the Traffic Director stops sending uploads here</small>
+          </div>
+          <div class="form-group">
+            <label for="resumePercent">Resume below (%):</label>
+            <input type="number" id="resumePercent" min="1" max="100" step="1" required value="<%= thresholds.resume_percent %>">
+            <small class="text-muted">Must be lower than the stop value, so the node doesn't flip on and off at the line</small>
+          </div>
+
+          <h4>Alerts</h4>
+          <div class="form-group">
+            <label for="overdueAlertPercent">Overdue-pin alerts from (%):</label>
+            <input type="number" id="overdueAlertPercent" min="1" max="100" step="1" required value="<%= thresholds.overdue_alert_percent %>">
+            <small class="text-muted">Hourly Discord alert about unmigrated pins once the repo is this full</small>
+          </div>
+          <div class="form-group">
+            <label for="diskWarningPercent">Health warning above (%):</label>
+            <input type="number" id="diskWarningPercent" min="1" max="100" step="1" required value="<%= thresholds.disk_warning_percent %>">
+          </div>
+          <div class="form-group">
+            <label for="diskCriticalPercent">Health critical above (%):</label>
+            <input type="number" id="diskCriticalPercent" min="1" max="100" step="1" required value="<%= thresholds.disk_critical_percent %>">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Thresholds</button>
+      </form>
+    </div>
+
     <!-- Manual Actions -->
     <div class="card">
       <h3>Manual Actions</h3>
@@ -244,6 +284,36 @@
           showNotification('Migration settings saved', 'success');
         } else {
           showNotification('Failed to save settings', 'error');
+        }
+      } catch (error) {
+        showNotification('Error: ' + error.message, 'error');
+      }
+    });
+
+    document.getElementById('capacityForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const val = id => parseInt(document.getElementById(id).value, 10);
+      const body = {
+        stop_percent: val('stopPercent'),
+        resume_percent: val('resumePercent'),
+        overdue_alert_percent: val('overdueAlertPercent'),
+        disk_warning_percent: val('diskWarningPercent'),
+        disk_critical_percent: val('diskCriticalPercent')
+      };
+
+      try {
+        const response = await fetch('/api/settings/capacity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await response.json();
+        if (data.success) {
+          showNotification(data.paused
+            ? 'Thresholds saved. Repo is over the cutoff: not accepting uploads'
+            : 'Thresholds saved', data.paused ? 'warning' : 'success');
+        } else {
+          showNotification('Failed: ' + (data.error || 'unknown error'), 'error');
         }
       } catch (error) {
         showNotification('Error: ' + error.message, 'error');

@@ -2,6 +2,7 @@ const { getDatabase } = require('../utils/database');
 const { getIPFSClient } = require('../utils/ipfs');
 const { getDiscordNotifier } = require('../utils/discord');
 const logger = require('../utils/logger');
+const { getThresholds, isPaused } = require('../utils/capacity');
 const os = require('os');
 const { exec } = require('child_process');
 const { promisify } = require('util');
@@ -150,13 +151,19 @@ class HealthReporter {
       let status = 'healthy';
       let reason = null;
 
+      const thresholds = await getThresholds(this.db);
+      const capacityPaused = await isPaused(this.db);
+
       if (!enabled) {
         status = 'disabled';
         reason = 'Node manually disabled';
-      } else if (diskUsagePercent > 90) {
+      } else if (capacityPaused) {
+        status = 'unhealthy';
+        reason = `Over capacity cutoff (${thresholds.stop_percent}%), not accepting uploads`;
+      } else if (diskUsagePercent > thresholds.disk_critical_percent) {
         status = 'unhealthy';
         reason = 'Disk usage critical';
-      } else if (diskUsagePercent > 80) {
+      } else if (diskUsagePercent > thresholds.disk_warning_percent) {
         status = 'warning';
         reason = 'Disk usage high';
       } else if (pinStats.overdue > 50) {
@@ -169,6 +176,7 @@ class HealthReporter {
         reason,
         ipfs_running: true,
         enabled,
+        capacity_paused: capacityPaused,
         disk_usage_percent: diskUsagePercent,
         repo_size_gb: repoSizeGB,
         total_pins: pinStats.total || 0,

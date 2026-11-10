@@ -4,6 +4,8 @@ const { getDatabase } = require('../utils/database');
 const { getIPFSClient } = require('../utils/ipfs');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
+const { getDiscordNotifier } = require('../utils/discord');
+const { evaluateCapacity, repoUsagePercent } = require('../utils/capacity');
 
 /**
  * Health Check API
@@ -29,25 +31,32 @@ router.get('/', async (req, res) => {
       });
     }
     
-    // Get enabled status
-    const enabled = (await db.getConfig('enabled')) === 'true';
+    // Manual Enable/Disable toggle
+    const manuallyEnabled = (await db.getConfig('enabled')) === 'true';
     
     // Get pin stats
     const pinStats = await db.getPinStats();
     
     // Get repo stats for disk usage
-    let diskUsagePercent = 0;
+    let repoPercent = null;
     try {
-      const repoStat = await ipfs.repoStat();
-      const repoSize = parseInt(repoStat.RepoSize || 0, 10);
-      const storageMax = parseInt(repoStat.StorageMax || 0, 10);
-      
-      if (storageMax > 0) {
-        diskUsagePercent = Math.round((repoSize / storageMax) * 100);
-      }
+      repoPercent = repoUsagePercent(await ipfs.repoStat());
     } catch (error) {
       logger.error('Failed to get disk usage:', error);
     }
+    const diskUsagePercent = repoPercent ?? 0;
+
+    // Capacity cutoff. If usage can't be read the last known state holds.
+    const capacity = await evaluateCapacity(db, repoPercent, ({ paused, repoPercent: pct, thresholds }) =>
+      getDiscordNotifier().notifyCapacityChange(paused, pct, thresholds)
+    );
+
+    // The Traffic Director routes uploads on `enabled`, so the cutoff is
+    // expressed through it (200 + enabled=false, same as a manual disable).
+    const enabled = manuallyEnabled && !capacity.paused;
+    let reason = null;
+    if (!manuallyEnabled) reason = 'disabled';
+    else if (capacity.paused) reason = 'capacity';
     
     // Get 24h bandwidth stats
     const last24h = await db.all(`
@@ -64,8 +73,14 @@ router.get('/', async (req, res) => {
     // Health response
     const health = {
       enabled,
+      reason,
       timestamp: new Date().toISOString(),
       disk_usage_percent: diskUsagePercent,
+      capacity: {
+        paused: capacity.paused,
+        stop_percent: capacity.thresholds.stop_percent,
+        resume_percent: capacity.thresholds.resume_percent
+      },
       bandwidth_24h: bandwidth24h,
       pins: {
         total: pinStats.total || 0,

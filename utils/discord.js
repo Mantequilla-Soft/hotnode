@@ -159,6 +159,22 @@ class DiscordNotifier {
   }
 
   /**
+   * Notify that the capacity cutoff stopped or resumed ingestion
+   */
+  async notifyCapacityChange(paused, repoPercent, thresholds) {
+    const title = paused ? '🛑 Hot Node Full: Not Accepting Uploads' : '✅ Hot Node Accepting Uploads Again';
+    const message = paused
+      ? `Repo usage reached ${repoPercent}% (cutoff ${thresholds.stop_percent}%). /health now reports enabled=false, so the Traffic Director stops sending uploads here. It resumes below ${thresholds.resume_percent}%.`
+      : `Repo usage is down to ${repoPercent}% (below ${thresholds.resume_percent}%). Uploads resume unless the node is manually disabled.`;
+
+    await this.send(title, message, paused ? 'red' : 'green', [
+      { name: 'Repo Usage', value: `${repoPercent}%`, inline: true },
+      { name: 'Stop At', value: `${thresholds.stop_percent}%`, inline: true },
+      { name: 'Resume Below', value: `${thresholds.resume_percent}%`, inline: true }
+    ]);
+  }
+
+  /**
    * Notify about overdue pins
    */
   async notifyOverduePins(count, oldestAge, repoPercent = null) {
