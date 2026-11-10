@@ -155,6 +155,16 @@ function scheduleWorkers() {
     }
   });
 
+  // Overdue Pin Alert - Every hour at :15. Alerts only; overdue pins never
+  // take the node out of rotation (see checkOverduePins()).
+  cron.schedule('15 * * * *', async () => {
+    try {
+      await cleanupWorker.getCleanupWorker().checkOverduePins();
+    } catch (error) {
+      logger.error('Overdue pin alert failed:', error);
+    }
+  });
+
   // Healing Worker - Daily at 3 AM
   cron.schedule('0 3 * * *', async () => {
     logger.info('Running healing worker...');

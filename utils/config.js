@@ -140,7 +140,10 @@ const config = {
   
   health: {
     disk_warning_percent: optionalInt('HEALTH_DISK_WARNING_PERCENT', 80),
-    disk_critical_percent: optionalInt('HEALTH_DISK_CRITICAL_PERCENT', 90)
+    disk_critical_percent: optionalInt('HEALTH_DISK_CRITICAL_PERCENT', 90),
+    // Overdue pins never stop ingestion; once the repo is at least this full
+    // (RepoSize / StorageMax) the backlog is alerted on every hour.
+    overdue_alert_repo_percent: optionalInt('HEALTH_OVERDUE_ALERT_REPO_PERCENT', 30)
   },
   
   logging: {

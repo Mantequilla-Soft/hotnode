@@ -108,6 +108,7 @@ CLEANUP_INVALID_RETENTION_DAYS=2
 # Health Thresholds
 HEALTH_DISK_WARNING_PERCENT=80
 HEALTH_DISK_CRITICAL_PERCENT=90
+HEALTH_OVERDUE_ALERT_REPO_PERCENT=30  # hourly overdue-pin alert above this repo usage
 ```
 
 See `.env.example` for all available options with descriptions.
