@@ -12,7 +12,7 @@
     "worker:migrate": "node -e 'require(\"./workers/migrationWorker\").run().then(r => console.log(r))'",
     "worker:cleanup": "node -e 'require(\"./workers/cleanupWorker\").run().then(r => console.log(r))'",
     "worker:stats": "node -e 'require(\"./workers/statsAggregator\").run().then(r => console.log(r))'",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/unit/*.test.js"
   },
   "keywords": [
     "ipfs",
