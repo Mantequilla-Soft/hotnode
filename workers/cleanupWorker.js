@@ -4,6 +4,7 @@ const { getDiscordNotifier } = require('../utils/discord');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
 const { LAST_SYNC_OK_KEY } = require('./syncLastServedWorker');
+const { getThresholds } = require('../utils/capacity');
 
 /**
  * Cleanup Worker
@@ -202,7 +203,7 @@ class CleanupWorker {
         logger.warn(`Found ${stats.overdue} overdue pins (>7 days, not migrated)`);
 
         const repoPercent = await this.getRepoUsagePercent();
-        const threshold = config.health.overdue_alert_repo_percent;
+        const threshold = (await getThresholds(this.db)).overdue_alert_percent;
         if (repoPercent !== null && repoPercent < threshold) {
           logger.info(`Repo at ${repoPercent}% (< ${threshold}%), not alerting on overdue pins`);
           return { overdue: stats.overdue, oldestAge: 0, alerted: false };

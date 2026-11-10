@@ -83,6 +83,13 @@
       </div>
     </div>
 
+    <% if (capacityPaused) { %>
+    <div class="card capacity-alert">
+      <strong>🛑 Not accepting uploads: repo is over the <%= thresholds.stop_percent %>% capacity cutoff.</strong>
+      <p>The Traffic Director is told this node is unavailable. Uploads resume automatically once usage drops below <%= thresholds.resume_percent %>%. Change the thresholds on the <a href="/settings">Settings</a> page.</p>
+    </div>
+    <% } %>
+
     <!-- Repo Stats -->
     <% if (repoStats) { %>
     <div class="card">
@@ -93,8 +100,12 @@
           <span><strong><%= repoStats.usage_percent %>%</strong></span>
         </div>
         <div class="progress-bar">
-          <div class="progress-fill" style="width: <%= repoStats.usage_percent %>%" 
-               class="<%= repoStats.usage_percent > 80 ? 'warning' : '' %>"></div>
+          <div class="progress-fill <%= repoStats.usage_percent >= thresholds.stop_percent ? 'danger' : (repoStats.usage_percent > thresholds.disk_warning_percent ? 'warning' : '') %>"
+               style="width: <%= Math.min(100, repoStats.usage_percent) %>%"></div>
+        </div>
+        <div class="stat-row">
+          <span>Ingestion cutoff:</span>
+          <span>stops at <%= thresholds.stop_percent %>%, resumes below <%= thresholds.resume_percent %>%</span>
         </div>
         <div class="stat-row">
           <span>Size:</span>

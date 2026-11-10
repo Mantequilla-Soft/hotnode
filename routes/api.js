@@ -6,6 +6,7 @@ const { getDiscordNotifier } = require('../utils/discord');
 const { getMongoDBClient } = require('../utils/mongo');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
+const capacity = require('../utils/capacity');
 
 // Import workers for manual execution
 const migrationWorker = require('../workers/migrationWorker');
@@ -263,6 +264,68 @@ router.post('/config/update', requireAuth, async (req, res) => {
   } catch (error) {
     logger.error('Failed to update config:', error);
     res.status(500).json({ error: 'Failed to update config' });
+  }
+});
+
+/**
+ * Capacity thresholds (ingestion cutoff and alert levels)
+ */
+router.get('/settings/capacity', async (req, res) => {
+  try {
+    const db = getDatabase();
+    res.json({
+      success: true,
+      thresholds: await capacity.getThresholds(db),
+      paused: await capacity.isPaused(db)
+    });
+  } catch (error) {
+    logger.error('Failed to get capacity settings:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/settings/capacity', requireAuth, async (req, res) => {
+  try {
+    const db = getDatabase();
+    const fields = Object.keys(capacity.THRESHOLD_KEYS);
+    const thresholds = {};
+    for (const field of fields) thresholds[field] = req.body?.[field];
+
+    const invalid = capacity.validateThresholds(thresholds);
+    if (invalid) {
+      return res.status(400).json({ success: false, error: invalid });
+    }
+
+    await capacity.saveThresholds(db, thresholds);
+
+    // Apply the new cutoff now rather than on the next /health poll, and
+    // without the hysteresis band, so raising the cutoff takes effect at once.
+    let repoPercent = null;
+    try {
+      repoPercent = capacity.repoUsagePercent(await getIPFSClient().repoStat());
+    } catch (error) {
+      logger.error('Failed to read repo usage after capacity change:', error);
+    }
+    const state = await capacity.evaluateCapacity(
+      db,
+      repoPercent,
+      ({ paused, repoPercent: pct, thresholds: t }) =>
+        getDiscordNotifier().notifyCapacityChange(paused, pct, t),
+      { reset: true }
+    );
+
+    await db.logEvent({
+      event_type: 'config_change',
+      severity: 'info',
+      message: `Capacity thresholds updated: stop ${thresholds.stop_percent}%, resume ${thresholds.resume_percent}%`,
+      metadata: thresholds
+    });
+    logger.info('Capacity thresholds updated:', thresholds);
+
+    res.json({ success: true, thresholds: state.thresholds, paused: state.paused, repo_percent: repoPercent });
+  } catch (error) {
+    logger.error('Failed to update capacity settings:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
