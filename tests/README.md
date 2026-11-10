@@ -2,6 +2,12 @@
 
 Test scripts for validating hotnode functionality.
 
+## Unit tests
+
+`npm test` runs `tests/unit/*.test.js` with Node's built-in test runner. They need no `.env`, IPFS daemon, MongoDB or network: kubo, SQLite (in-memory), Discord and the logger are stubbed.
+
+The scripts below are manual integration checks against a live node.
+
 ## upload-test.js
 
 Tests the pin validation workflow by uploading content that doesn't exist in MongoDB collections.

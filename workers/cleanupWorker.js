@@ -190,14 +190,23 @@ class CleanupWorker {
   }
 
   /**
-   * Check for overdue pins and notify
+   * Check for overdue pins and notify once the repo is filling up.
+   * Runs daily as part of cleanup and hourly on its own (see app.js), so
+   * the alert repeats until the backlog clears or space is freed.
    */
   async checkOverduePins() {
     try {
       const stats = await this.db.getPinStats();
-      
+
       if (stats.overdue > 0) {
         logger.warn(`Found ${stats.overdue} overdue pins (>7 days, not migrated)`);
+
+        const repoPercent = await this.getRepoUsagePercent();
+        const threshold = config.health.overdue_alert_repo_percent;
+        if (repoPercent !== null && repoPercent < threshold) {
+          logger.info(`Repo at ${repoPercent}% (< ${threshold}%), not alerting on overdue pins`);
+          return { overdue: stats.overdue, oldestAge: 0, alerted: false };
+        }
         
         // Get oldest overdue pin age
         const oldestPin = await this.db.get(`
@@ -212,15 +221,31 @@ class CleanupWorker {
         const oldestAge = oldestPin ? Math.floor(oldestPin.age) : 0;
         
         // Send Discord notification
-        await this.discord.notifyOverduePins(stats.overdue, oldestAge);
-        
-        return { overdue: stats.overdue, oldestAge };
+        await this.discord.notifyOverduePins(stats.overdue, oldestAge, repoPercent);
+
+        return { overdue: stats.overdue, oldestAge, alerted: true };
       }
-      
-      return { overdue: 0, oldestAge: 0 };
+
+      return { overdue: 0, oldestAge: 0, alerted: false };
     } catch (error) {
       logger.error('Failed to check overdue pins:', error);
-      return { overdue: 0, oldestAge: 0 };
+      return { overdue: 0, oldestAge: 0, alerted: false };
+    }
+  }
+
+  /**
+   * Repo usage as a percent of StorageMax, or null if it can't be read
+   * (callers then alert anyway rather than stay silent).
+   */
+  async getRepoUsagePercent() {
+    try {
+      const repoStat = await this.ipfs.repoStat();
+      const repoSize = parseInt(repoStat.RepoSize || 0, 10);
+      const storageMax = parseInt(repoStat.StorageMax || 0, 10);
+      return storageMax > 0 ? Math.round((repoSize / storageMax) * 100) : null;
+    } catch (error) {
+      logger.error('Failed to get repo usage:', error);
+      return null;
     }
   }
 

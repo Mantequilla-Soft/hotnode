@@ -161,15 +161,20 @@ class DiscordNotifier {
   /**
    * Notify about overdue pins
    */
-  async notifyOverduePins(count, oldestAge) {
+  async notifyOverduePins(count, oldestAge, repoPercent = null) {
+    const fields = [
+      { name: 'Overdue Count', value: String(count), inline: true },
+      { name: 'Oldest Pin Age', value: `${oldestAge} days`, inline: true }
+    ];
+    if (repoPercent !== null) {
+      fields.push({ name: 'Repo Usage', value: `${repoPercent}%`, inline: true });
+    }
+
     await this.send(
       '🚨 Overdue Pins Detected',
-      `${count} pins are older than 7 days and have not been migrated`,
+      `${count} pins are older than 7 days and have not been migrated. Ingestion continues; check migration to the supernode.`,
       'red',
-      [
-        { name: 'Overdue Count', value: String(count), inline: true },
-        { name: 'Oldest Pin Age', value: `${oldestAge} days`, inline: true }
-      ]
+      fields
     );
   }
 
