@@ -22,7 +22,7 @@
             🔒 Login
           </button>
           <button id="logoutBtn" class="btn btn-sm btn-secondary" style="display: <%= isAuthenticated ? 'inline-block' : 'none' %>;">
-            🔓 Logout
+            🔓 Logout<%= locals.user ? ` @${user}` : '' %>
           </button>
         </li>
       </ul>
@@ -191,24 +191,7 @@
   </footer>
 
   <!-- Login Modal -->
-  <div id="loginModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <h3>Admin Login</h3>
-      <form id="loginForm">
-        <input 
-          type="password" 
-          id="loginPassword" 
-          placeholder="Enter admin password" 
-          required 
-          autocomplete="current-password"
-        >
-        <div class="modal-buttons">
-          <button type="submit" class="btn btn-primary">Login</button>
-          <button type="button" class="btn btn-secondary" onclick="hideLoginModal()">Cancel</button>
-        </div>
-      </form>
-    </div>
-  </div>
+    <%- include('partials/login') %>
 
   <script src="/js/main.js"></script>
   <script>

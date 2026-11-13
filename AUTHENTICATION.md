@@ -2,73 +2,50 @@
 
 ## Overview
 
-The Hot Node UI uses simple password-based authentication to protect administrative actions. The interface is **view-only by default** and requires login to perform any write operations.
+Admins log in with **Hive Keychain**. The interface is **view-only by default**:
+anyone can look, and only the Hive accounts listed in `ALLOWED_USERS` can change
+anything. There is no shared password.
 
 ## Setup
 
-### 1. Configure Password
-
-Add your admin password to the `.env` file:
+Add to `.env`:
 
 ```bash
-ADMIN_PASSWORD=your_secure_password_here
-SESSION_SECRET=your_random_secret_key_here
+# Hive accounts that may act, comma-separated
+ALLOWED_USERS=meno,coolmole
+# At least 32 random characters (openssl rand -hex 32); login is refused without it
+SESSION_SECRET=...
+# Optional: Hive API nodes used to check signatures, tried in order
+# HIVE_API_NODES=https://api.hive.blog,https://api.deathwing.me,https://anyx.io
 ```
 
-**Important:**
-- Use a strong, unique password
-- Never commit `.env` to version control
-- Change `SESSION_SECRET` to a random string in production
+Restart the service after changing `ALLOWED_USERS`. `ADMIN_PASSWORD` is no longer
+used and can be removed.
 
-### 2. Session Configuration
+## How login works
 
-Sessions are configured to:
-- Last 24 hours
-- Use httpOnly cookies (XSS protection)
-- Use secure cookies in production (HTTPS only)
+1. **🔒 Login**, type your Hive account, **Log in**.
+2. The node gives your browser a one-time message (valid 5 minutes) that names this
+   node and your account.
+3. Keychain asks you to sign it with your **posting key**. Nothing is broadcast.
+4. The node recovers the public key from the signature and checks on chain that it
+   is one of the account's posting keys, strong enough to sign alone.
+5. You get a session for 24 hours. Every write checks that your account is still
+   in `ALLOWED_USERS`.
 
-## Usage
+Logged in with an account that isn't listed, the pages stay read-only and say so.
 
-### Login
-
-1. Open the Hot Node UI in your browser
-2. Click the **🔒 Login** button in the top-right corner
-3. Enter your admin password
-4. Click **Login**
-
-Once authenticated, all administrative controls become enabled.
-
-### Logout
-
-Click the **🔓 Logout** button in the top-right corner to end your session.
-
-### View-Only Mode
-
-When not authenticated:
-- ✅ View all dashboards, stats, and pin lists
-- ✅ See system health and status
-- ❌ Cannot toggle enable/disable
-- ❌ Cannot add or remove pins
-- ❌ Cannot trigger migrations or GC
-- ❌ Cannot modify settings
-
-### Protected Actions
-
-The following actions require authentication:
-- Toggle hot node enabled/disabled
-- Add manual pins
-- Remove pins
-- Update configuration
-- Trigger manual migration
-- Run garbage collection
-- Modify Discord webhook settings
+Details:
+- the session cookie is httpOnly and `SameSite=Strict`, and a new session id is
+  issued at login;
+- each message can be used once;
+- login attempts are rate-limited per IP (40 every 15 minutes).
 
 ## Security Notes
 
 - Sessions are stored in-memory (restart clears all sessions)
 - For production, consider using Redis or MongoDB for session storage
 - Always use HTTPS in production to protect credentials
-- Implement rate limiting for login attempts (future enhancement)
 - Consider adding IP whitelisting at the nginx/firewall level
 
 ## API Endpoints
@@ -76,15 +53,18 @@ The following actions require authentication:
 ### Authentication Endpoints
 
 ```
-POST /api/auth/login
-Body: { "password": "your_password" }
-Response: { "success": true }
+GET /api/auth/challenge?user=<account>
+Response: { "user", "message", "expiresInMs" }
+
+POST /api/auth/verify
+Body: { "user", "message", "signature" }   (signature: Keychain requestSignBuffer, Posting)
+Response: { "success": true, "user", "authorized" }
 
 POST /api/auth/logout
 Response: { "success": true }
 
 GET /api/auth/status
-Response: { "authenticated": true/false }
+Response: { "authenticated", "user", "authorized" }   (authenticated = logged in AND in ALLOWED_USERS)
 ```
 
 ### Protected Endpoints
@@ -97,8 +77,11 @@ All write operations require authentication:
 - `POST /api/pins/migrate`
 - `POST /api/migration/run`
 - `POST /api/gc/run`
+- `POST /settings/migration-rate`
+- `POST /api/discord/test`
+- and every other write in `routes/api.js` marked `requireAuth`
 
-401 Unauthorized is returned for unauthenticated requests to protected endpoints.
+401 is returned when nobody is logged in, 403 for a logged-in account that isn't in `ALLOWED_USERS`.
 
 ## Testing
 
@@ -107,7 +90,7 @@ To test authentication:
 1. Start the server: `npm start`
 2. Open browser to `http://localhost:3101`
 3. Try to add a pin without logging in (button should be disabled)
-4. Login with your password
+4. Log in with Keychain, as an account in ALLOWED_USERS
 5. Add a pin (should now work)
 6. Logout
 7. Verify actions are disabled again

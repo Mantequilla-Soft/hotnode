@@ -58,7 +58,7 @@ cp .env.example .env
 nano .env
 
 # Set your admin password and other settings
-# Required: ADMIN_PASSWORD, SUPERNODE_API
+# Required: ALLOWED_USERS (Hive accounts that log in with Keychain), SUPERNODE_API
 # Optional: MONGODB_URI (for video validation)
 
 # Start the service
@@ -89,7 +89,7 @@ Copy `.env.example` to `.env` and configure:
 
 ```bash
 # Required
-ADMIN_PASSWORD=your_secure_password_here
+ALLOWED_USERS=meno            # Hive accounts that log in with Keychain
 SUPERNODE_API=https://ipfs.3speak.tv
 
 # Optional

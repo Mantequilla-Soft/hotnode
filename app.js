@@ -9,6 +9,7 @@ const { getDatabase } = require('./utils/database');
 const { getIPFSClient } = require('./utils/ipfs');
 const logger = require('./utils/logger');
 const config = require('./utils/config');
+const { getAuth } = require('./utils/auth');
 
 // Import workers
 const mongoValidator = require('./workers/mongoValidator');
@@ -26,6 +27,8 @@ const adminRoutes = require('./routes/admin');
 const apiRoutes = require('./routes/api');
 
 logger.info('Configuration loaded successfully');
+if (!getAuth().allowedCount()) logger.warn('ALLOWED_USERS is empty: nobody can log in to change anything');
+if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) logger.warn('SESSION_SECRET is missing or short: Keychain login is refused until it is set');
 
 // Initialize Express app
 const app = express();
@@ -47,13 +50,17 @@ app.use(session({
   cookie: {
     secure: false,
     httpOnly: true,
+    // Another site can't make a logged-in admin's browser send a write.
+    sameSite: 'strict',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
 
 // Make auth status available to all views
 app.use((req, res, next) => {
-  res.locals.isAuthenticated = req.session.authenticated || false;
+  // Logged in with Keychain AND in ALLOWED_USERS (re-checked every request).
+  res.locals.user = req.session.user || null;
+  res.locals.isAuthenticated = getAuth().isAllowed(req.session.user);
   next();
 });
 

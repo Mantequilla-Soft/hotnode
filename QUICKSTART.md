@@ -20,7 +20,7 @@ nano .env
 ```
 
 **Minimum required changes:**
-- `ADMIN_PASSWORD` → Your secure admin password
+- `ALLOWED_USERS` → Hive accounts that may log in with Hive Keychain (e.g. `meno`)
 - `SUPERNODE_API` → Supernode IPFS API (required: https://ipfs.3speak.tv)
 - `HOTNODE_NAME` → Unique name like "HotNode-Dev"
 

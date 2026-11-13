@@ -50,9 +50,9 @@ sudo nano /opt/ipfs-hotnode/.env
 
 **Required Configuration:**
 
-1. **Admin Password** - Set a secure password:
+1. **Admins** - The Hive accounts that may log in (with Hive Keychain) and change anything:
 ```bash
-ADMIN_PASSWORD=your_secure_password_here
+ALLOWED_USERS=meno,coolmole
 ```
 
 2. **Supernode API** - Set the supernode URL:
