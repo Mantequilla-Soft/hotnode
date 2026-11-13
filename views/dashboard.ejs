@@ -83,6 +83,17 @@
       </div>
     </div>
 
+    <% if (target === 's3') { %>
+    <div class="card s3-summary">
+      <strong>S3 copies (through the migrator):</strong>
+      <a href="/pins?s3=requested"><%= pinStats.s3_requested || 0 %> requested</a> ·
+      <a href="/pins?s3=copied"><%= pinStats.s3_copied || 0 %> copied</a> ·
+      <a href="/pins?s3=archived"><%= pinStats.s3_archived || 0 %> archived</a> ·
+      <a href="/pins?s3=failed" class="<%= pinStats.s3_failed ? 'text-danger' : '' %>"><%= pinStats.s3_failed || 0 %> failed</a> ·
+      <a href="/pins?s3=rejected"><%= pinStats.s3_rejected || 0 %> rejected</a>
+    </div>
+    <% } %>
+
     <% if (capacityPaused) { %>
     <div class="card capacity-alert">
       <strong>🛑 Not accepting uploads: repo is over the <%= thresholds.stop_percent %>% capacity cutoff.</strong>
@@ -126,27 +137,29 @@
         <table class="data-table">
           <thead>
             <tr>
+              <th>Video</th>
               <th>CID</th>
               <th>Status</th>
               <th>Size</th>
               <th>Added</th>
-              <th>Migrated</th>
+              <th><%= target === 's3' ? 'S3 copy' : 'Migrated' %></th>
             </tr>
           </thead>
           <tbody>
             <% if (recentPins && recentPins.length > 0) { %>
               <% recentPins.forEach(pin => { %>
                 <tr>
+                  <td class="video-cell"><%- include('partials/video', { pin }) %></td>
                   <td><code class="cid"><%= pin.cid.substring(0, 16) %>...</code></td>
                   <td><span class="badge badge-<%= pin.status %>"><%= pin.status %></span></td>
                   <td><%= pin.size_bytes ? (pin.size_bytes / (1024 * 1024)).toFixed(2) + ' MB' : 'N/A' %></td>
                   <td><%= new Date(pin.added_at).toLocaleString() %></td>
-                  <td><%= pin.migrated ? '✓' : '○' %></td>
+                  <td><% if (target === 's3') { %><%- include('partials/s3state', { pin, migratorUrl: null }) %><% } else { %><%= pin.migrated ? '✓' : '○' %><% } %></td>
                 </tr>
               <% }); %>
             <% } else { %>
               <tr>
-                <td colspan="5" class="text-center">No recent uploads</td>
+                <td colspan="6" class="text-center">No recent uploads</td>
               </tr>
             <% } %>
           </tbody>

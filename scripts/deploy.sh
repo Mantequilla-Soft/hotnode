@@ -167,6 +167,7 @@ run_migrations() {
     # runner (numbered scripts + a schema_migrations table).
     local known_migrations=(
         "scripts/migrateAddServingTracking.js"
+        "scripts/migrateAddS3Tracking.js"
     )
 
     for migration in "${known_migrations[@]}"; do

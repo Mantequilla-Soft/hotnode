@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const DB_PATH = path.join(__dirname, '../database/hotnode.db');
-const SCHEMA_VERSION = 3; // Increment when schema changes
+const SCHEMA_VERSION = 4; // Increment when schema changes
 
 // Ensure database directory exists
 const dbDir = path.dirname(DB_PATH);
@@ -37,7 +37,21 @@ CREATE TABLE IF NOT EXISTS pins (
     -- Mongo's view-heatmaps.updatedAt (see workers/syncLastServedWorker.js).
     -- Drives retention instead of migration status - see
     -- getDormantPinsForCleanup().
-    last_served_at DATETIME
+    last_served_at DATETIME,
+    -- The S3 copy, made by snapie-migrator (see workers/s3Worker.js).
+    -- s3_state: NULL (not asked) | requested | copied | archived | failed | rejected
+    s3_state TEXT,
+    s3_url TEXT,
+    s3_car_url TEXT,
+    s3_bytes INTEGER,
+    s3_requested_at DATETIME,
+    s3_copied_at DATETIME,
+    s3_archived_at DATETIME,
+    s3_attempts INTEGER DEFAULT 0,
+    s3_error_code TEXT,
+    s3_error TEXT,
+    s3_retryable INTEGER,
+    s3_next_attempt_at DATETIME
 );
 
 CREATE INDEX IF NOT EXISTS idx_pins_status ON pins(status);
@@ -46,6 +60,15 @@ CREATE INDEX IF NOT EXISTS idx_pins_cid ON pins(cid);
 CREATE INDEX IF NOT EXISTS idx_pins_added_at ON pins(added_at);
 CREATE INDEX IF NOT EXISTS idx_pins_owner_permlink ON pins(owner, permlink);
 CREATE INDEX IF NOT EXISTS idx_pins_last_served_at ON pins(last_served_at);
+CREATE INDEX IF NOT EXISTS idx_pins_s3_state ON pins(s3_state);
+
+-- Events the migrator sent us (POST /api/s3/callback), so a repeat is ignored.
+CREATE TABLE IF NOT EXISTS s3_events (
+    event_id TEXT PRIMARY KEY,
+    event TEXT NOT NULL,
+    cid TEXT NOT NULL,
+    received_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Traffic stats table: bandwidth and request tracking
 CREATE TABLE IF NOT EXISTS traffic_stats (
@@ -141,7 +164,9 @@ const defaultConfig = [
   ['last_gc_run', ''],
   ['last_migration_run', ''],
   ['last_stats_run', ''],
-  ['schema_version', SCHEMA_VERSION.toString()]
+  ['schema_version', SCHEMA_VERSION.toString()],
+  // supernode | s3 (Settings page). s3 = copies go through snapie-migrator.
+  ['migration_target', 'supernode']
 ];
 
 function initializeDatabase() {
@@ -206,4 +231,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { initializeDatabase, DB_PATH, SCHEMA_VERSION };
+module.exports = { initializeDatabase, DB_PATH, SCHEMA_VERSION, schema };

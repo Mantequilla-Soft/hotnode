@@ -158,13 +158,18 @@ class Database {
   // The added_at fallback makes "no data" look dormant, so callers must only
   // act on this after a recent clean last-served sync - cleanupWorker gates
   // on syncLastServedWorker's LAST_SYNC_OK_KEY for exactly that reason.
-  async getDormantPinsForCleanup(minAgeDays, dormantAfterDays) {
+  //
+  // requireS3: with the S3 target on, only pins whose S3 copy is confirmed
+  // (s3_state 'copied', set by the migrator's signed event) may go. Nothing
+  // else then has a copy we know of.
+  async getDormantPinsForCleanup(minAgeDays, dormantAfterDays, { requireS3 = false } = {}) {
     const sql = `
       SELECT * FROM pins
       WHERE status = 'valid'
       AND unpinned = 0
       AND julianday('now') - julianday(added_at) >= ?
       AND julianday('now') - julianday(COALESCE(last_served_at, added_at)) >= ?
+      ${requireS3 ? "AND s3_state = 'copied'" : ''}
       ORDER BY added_at ASC
     `;
     return this.all(sql, [minAgeDays, dormantAfterDays]);
@@ -192,10 +197,64 @@ class Database {
         SUM(CASE WHEN status = 'valid' AND migrated = 0 THEN 1 ELSE 0 END) as pending_migration,
         SUM(CASE WHEN migrated = 1 THEN 1 ELSE 0 END) as migrated,
         SUM(CASE WHEN status = 'invalid' THEN 1 ELSE 0 END) as invalid,
-        SUM(CASE WHEN julianday('now') - julianday(added_at) > 7 AND migrated = 0 THEN 1 ELSE 0 END) as overdue
+        SUM(CASE WHEN julianday('now') - julianday(added_at) > 7 AND migrated = 0 THEN 1 ELSE 0 END) as overdue,
+        SUM(CASE WHEN s3_state = 'requested' THEN 1 ELSE 0 END) as s3_requested,
+        SUM(CASE WHEN s3_state = 'copied' THEN 1 ELSE 0 END) as s3_copied,
+        SUM(CASE WHEN s3_state = 'archived' THEN 1 ELSE 0 END) as s3_archived,
+        SUM(CASE WHEN s3_state = 'failed' THEN 1 ELSE 0 END) as s3_failed,
+        SUM(CASE WHEN s3_state = 'rejected' THEN 1 ELSE 0 END) as s3_rejected
       FROM pins
     `;
     return this.get(sql);
+  }
+
+  // S3 copies (workers/s3Worker.js) ------------------------------------
+
+  // 'supernode' (the old IPFS migration) or 's3' (through snapie-migrator).
+  async getMigrationTarget() {
+    return (await this.getConfig('migration_target')) === 's3' ? 's3' : 'supernode';
+  }
+
+  // Pins to ask the migrator about: held, valid, old enough, and either never
+  // asked or a retryable failure whose backoff has passed. Oldest first.
+  async getPinsForS3Request(startDays, limit) {
+    const sql = `
+      SELECT * FROM pins
+      WHERE status = 'valid'
+      AND unpinned = 0
+      AND julianday('now') - julianday(added_at) >= ?
+      AND (s3_state IS NULL
+        OR (s3_state = 'failed' AND s3_retryable = 1 AND julianday(s3_next_attempt_at) <= julianday('now')))
+      ORDER BY added_at ASC
+      LIMIT ?
+    `;
+    return this.all(sql, [startDays, limit]);
+  }
+
+  // Requests with no answer for this long: ask the migrator where they stand.
+  async getStaleS3Requests(hours) {
+    const sql = `
+      SELECT * FROM pins
+      WHERE s3_state = 'requested'
+      AND (julianday('now') - julianday(s3_requested_at)) * 24 >= ?
+      ORDER BY s3_requested_at ASC
+    `;
+    return this.all(sql, [hours]);
+  }
+
+  // Unpinned here, copy confirmed, but the flip to 'archived' hasn't happened.
+  async getPinsToArchive() {
+    return this.all(`SELECT * FROM pins WHERE unpinned = 1 AND s3_state = 'copied' ORDER BY unpinned_at ASC`);
+  }
+
+  // → true the first time this event id is seen.
+  async recordS3Event(eventId, event, cid) {
+    const r = await this.run('INSERT OR IGNORE INTO s3_events (event_id, event, cid) VALUES (?, ?, ?)', [eventId, event, cid]);
+    return r.changes === 1;
+  }
+
+  async forgetS3Event(eventId) {
+    return this.run('DELETE FROM s3_events WHERE event_id = ?', [eventId]);
   }
 
   // Config methods

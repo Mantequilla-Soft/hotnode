@@ -85,6 +85,18 @@ const config = {
     log_path: optional('NGINX_LOG_PATH', '/var/log/nginx/ipfs-gateway.log')
   },
   
+  // snapie-migrator on this same VPS: copies videos to S3 (Settings: migration
+  // target "s3"). Its service API needs the token; its callbacks are signed
+  // with the secret. Both values must match the migrator's .env.
+  migrator: {
+    url: optional('MIGRATOR_SERVICE_URL', '').replace(/\/+$/, ''),
+    token: optional('MIGRATOR_SERVICE_TOKEN', ''),
+    callback_secret: optional('HOTNODE_CALLBACK_SECRET', ''),
+    // Where the migrator's page is, for links from the pins table (optional).
+    public_url: optional('MIGRATOR_PUBLIC_URL', '').replace(/\/+$/, ''),
+    timeout_ms: optionalInt('MIGRATOR_TIMEOUT_MS', 30000)
+  },
+
   migration: {
     start_after_days: optionalInt('MIGRATION_START_AFTER_DAYS', 4),
     delete_after_days: optionalInt('MIGRATION_DELETE_AFTER_DAYS', 7),

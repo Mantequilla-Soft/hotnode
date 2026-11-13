@@ -36,12 +36,14 @@
     <div class="card" style="margin-bottom: 1rem;">
       <div class="action-buttons">
         <button class="btn btn-primary" onclick="verifyOverduePins()">
-          🩺 Verify Overdue Pins
+          🩺 <%= target === 's3' ? 'Check Unanswered S3 Requests' : 'Verify Overdue Pins' %>
         </button>
         <span id="verifyStatus" style="margin-left: 1rem; color: #666;"></span>
       </div>
       <p class="text-muted" style="margin-top: 0.5rem; font-size: 0.9rem;">
-        Check if overdue pins have been migrated to the supernode manually
+        <%= target === 's3'
+          ? 'Copies go to S3 through the migrator. This asks it about requests that never got an answer.'
+          : 'Check if overdue pins have been migrated to the supernode manually' %>
       </p>
     </div>
 
@@ -57,9 +59,20 @@
             <option value="invalid" <%= filters.status === 'invalid' ? 'selected' : '' %>>Invalid</option>
           </select>
         </div>
+        <% if (target === 's3') { %>
         <div class="form-group">
-          <label>Search CID:</label>
-          <input type="text" name="search" value="<%= filters.search || '' %>" placeholder="Enter CID...">
+          <label>S3 copy:</label>
+          <select name="s3">
+            <option value="">All</option>
+            <% [['none', 'Not yet'], ['requested', 'Requested'], ['copied', 'Copied'], ['archived', 'Archived'], ['failed', 'Failed'], ['rejected', 'Rejected']].forEach(([v, label]) => { %>
+              <option value="<%= v %>" <%= filters.s3 === v ? 'selected' : '' %>><%= label %></option>
+            <% }) %>
+          </select>
+        </div>
+        <% } %>
+        <div class="form-group">
+          <label>Search:</label>
+          <input type="text" name="search" value="<%= filters.search || '' %>" placeholder="CID, channel or permlink">
         </div>
         <button type="submit" class="btn btn-primary">Filter</button>
         <a href="/pins" class="btn btn-secondary">Clear</a>
@@ -72,12 +85,17 @@
         <table class="data-table">
           <thead>
             <tr>
+              <th>Video</th>
               <th>CID</th>
               <th>Status</th>
               <th>Size</th>
               <th>Added</th>
+              <% if (target === 's3') { %>
+              <th>S3 copy</th>
+              <% } else { %>
               <th>Migrated</th>
               <th>Supernode</th>
+              <% } %>
               <th>Retries</th>
               <th>Actions</th>
               <th>Migrate</th>
@@ -86,25 +104,43 @@
           <tbody>
             <% if (pins && pins.length > 0) { %>
               <% pins.forEach(pin => { %>
+                <% const s3Done = ['copied', 'archived'].includes(pin.s3_state); %>
+                <% const canUnpin = target === 's3' ? pin.s3_state === 'copied' : !!pin.migrated; %>
                 <tr data-cid="<%= pin.cid %>">
+                  <td class="video-cell"><%- include('partials/video', { pin }) %></td>
                   <td><code class="cid" style="word-break: break-all;"><%= pin.cid %></code></td>
                   <td><span class="badge badge-<%= pin.status %>"><%= pin.status %></span></td>
                   <td><%= pin.size_bytes ? (pin.size_bytes / (1024 * 1024)).toFixed(2) + ' MB' : 'N/A' %></td>
                   <td><%= new Date(pin.added_at).toLocaleString() %></td>
+                  <% if (target === 's3') { %>
+                  <td><%- include('partials/s3state', { pin, migratorUrl }) %></td>
+                  <% } else { %>
                   <td><%= pin.migrated ? '✓ ' + new Date(pin.migrated_at).toLocaleDateString() : '○' %></td>
                   <td>
                     <span class="supernode-status" data-cid="<%= pin.cid %>">
                       <button class="btn btn-sm btn-info" onclick="checkSupernode('<%= pin.cid %>')">Check</button>
                     </span>
                   </td>
-                  <td><%= pin.retry_count || 0 %></td>
+                  <% } %>
+                  <td><%= target === 's3' ? (pin.s3_attempts || 0) : (pin.retry_count || 0) %></td>
                   <td>
                     <% if (!pin.unpinned) { %>
-                      <button class="btn btn-sm btn-danger unpin-btn" data-cid="<%= pin.cid %>" onclick="unpinCID('<%= pin.cid %>')" <%= pin.migrated ? '' : 'disabled' %>>Unpin</button>
+                      <button class="btn btn-sm btn-danger unpin-btn" data-cid="<%= pin.cid %>" onclick="unpinCID('<%= pin.cid %>')" <%= canUnpin ? '' : 'disabled' %>
+                        title="<%= canUnpin ? 'Unpin from this node' : (target === 's3' ? 'Only once the S3 copy is confirmed' : 'Only once migrated') %>">Unpin</button>
+                    <% } else { %>
+                      <span class="text-muted">unpinned</span>
                     <% } %>
                   </td>
                   <td>
-                    <% if (!pin.migrated && !pin.unpinned) { %>
+                    <% if (target === 's3') { %>
+                      <% if (!s3Done && !pin.unpinned) { %>
+                        <button class="btn btn-sm btn-primary migrate-btn" data-cid="<%= pin.cid %>" onclick="migratePin('<%= pin.cid %>')" style="display: <%= isAuthenticated ? 'inline-block' : 'none' %>;">
+                          <%= ['failed', 'rejected'].includes(pin.s3_state) ? 'Retry S3' : pin.s3_state === 'requested' ? 'Ask again' : 'Copy to S3' %>
+                        </button>
+                      <% } else if (s3Done) { %>
+                        <span style="color: #22c55e;">✓ In S3</span>
+                      <% } %>
+                    <% } else if (!pin.migrated && !pin.unpinned) { %>
                       <button class="btn btn-sm btn-primary migrate-btn" data-cid="<%= pin.cid %>" onclick="migratePin('<%= pin.cid %>')" style="display: <%= isAuthenticated ? 'inline-block' : 'none' %>;">Migrate</button>
                     <% } else if (pin.migrated) { %>
                       <span style="color: #22c55e;">✓ Migrated</span>
@@ -114,7 +150,7 @@
               <% }); %>
             <% } else { %>
               <tr>
-                <td colspan="8" class="text-center">No pins found</td>
+                <td colspan="10" class="text-center">No pins found</td>
               </tr>
             <% } %>
           </tbody>
@@ -125,13 +161,13 @@
       <% if (pagination.totalPages > 1) { %>
         <div class="pagination">
           <% if (pagination.page > 1) { %>
-            <a href="?page=<%= pagination.page - 1 %>&status=<%= filters.status || '' %>&search=<%= filters.search || '' %>" class="btn btn-sm">Previous</a>
+            <a href="?page=<%= pagination.page - 1 %>&status=<%= filters.status || '' %>&s3=<%= filters.s3 || '' %>&search=<%= encodeURIComponent(filters.search || '') %>" class="btn btn-sm">Previous</a>
           <% } %>
           
           <span>Page <%= pagination.page %> of <%= pagination.totalPages %> (<%= pagination.totalPins %> total)</span>
           
           <% if (pagination.page < pagination.totalPages) { %>
-            <a href="?page=<%= pagination.page + 1 %>&status=<%= filters.status || '' %>&search=<%= filters.search || '' %>" class="btn btn-sm">Next</a>
+            <a href="?page=<%= pagination.page + 1 %>&status=<%= filters.status || '' %>&s3=<%= filters.s3 || '' %>&search=<%= encodeURIComponent(filters.search || '') %>" class="btn btn-sm">Next</a>
           <% } %>
         </div>
       <% } %>
@@ -485,7 +521,11 @@
 
     // Manual migration button handler
     async function migratePin(cid) {
-      if (!confirm(`Manually migrate this pin to the supernode?\n\nCID: ${cid}\n\nThis will attempt to pin it to the supernode immediately.`)) {
+      const toS3 = <%- JSON.stringify(target === 's3') %>;
+      const question = toS3
+        ? `Copy this pin to S3 now?\n\nCID: ${cid}\n\nThe migrator copies it from this node; the S3 column shows the result.`
+        : `Manually migrate this pin to the supernode?\n\nCID: ${cid}\n\nThis will attempt to pin it to the supernode immediately.`;
+      if (!confirm(question)) {
         return;
       }
       
@@ -514,14 +554,14 @@
           showNotification('✗ Migration failed: ' + errorMsg, 'error');
           if (migrateBtn) {
             migrateBtn.disabled = false;
-            migrateBtn.textContent = 'Migrate';
+            migrateBtn.textContent = toS3 ? 'Copy to S3' : 'Migrate';
           }
         }
       } catch (error) {
         showNotification('✗ Network error: ' + error.message, 'error');
         if (migrateBtn) {
           migrateBtn.disabled = false;
-          migrateBtn.textContent = 'Migrate';
+          migrateBtn.textContent = toS3 ? 'Copy to S3' : 'Migrate';
         }
       }
     }

@@ -12,6 +12,8 @@ const capacity = require('../utils/capacity');
 const migrationWorker = require('../workers/migrationWorker');
 const cleanupWorker = require('../workers/cleanupWorker');
 const mongoValidator = require('../workers/mongoValidator');
+const { getS3Worker } = require('../workers/s3Worker');
+const { getMigratorClient, missingSettings } = require('../utils/migrator');
 
 /**
  * Admin API Endpoints
@@ -493,12 +495,23 @@ router.post('/pins/add', requireAuth, async (req, res) => {
     // Get size
     const size = await ipfs.getCIDSize(cid);
     
+    // Which video it is, for the Pins page links and retention (as pin
+    // discovery does). A Mongo problem just leaves it unmatched.
+    let video = null;
+    try {
+      video = await getMongoDBClient().getVideoMetadata(cid);
+    } catch (e) {
+      logger.warn(`Video lookup for ${cid} failed: ${e.message}`);
+    }
+
     // Add to database
     await db.insertPin({
       cid,
       size_bytes: size,
       status: 'pending',
-      notes: 'Manually added'
+      notes: 'Manually added',
+      owner: video?.owner || null,
+      permlink: video ? (video.permlink || video.hive_permlink || null) : null
     });
     
     logger.info(`Manually pinned: ${cid}`);
@@ -523,6 +536,16 @@ router.post('/pins/remove', requireAuth, async (req, res) => {
     
     const db = getDatabase();
     const ipfs = getIPFSClient();
+    const s3 = getS3Worker();
+    const s3On = await s3.isOn();
+
+    // S3 target: only a copy the migrator confirmed may leave this node.
+    if (s3On) {
+      const pin = await db.getPin(cid);
+      if (pin && pin.s3_state !== 'copied') {
+        return res.status(409).json({ error: 'Not copied to S3', message: `The S3 copy isn't confirmed (${pin.s3_state || 'not requested'}); migrate it first` });
+      }
+    }
     
     // Unpin from IPFS
     await ipfs.pinRm(cid);
@@ -535,8 +558,11 @@ router.post('/pins/remove', requireAuth, async (req, res) => {
     });
     
     logger.info(`Manually unpinned: ${cid}`);
+
+    // Then the player goes straight to S3 (retried hourly if this fails).
+    const archived = s3On ? await s3.archiveAfterUnpin(cid) : null;
     
-    res.json({ success: true, cid });
+    res.json({ success: true, cid, archived });
   } catch (error) {
     logger.error('Failed to remove pin:', error);
     res.status(500).json({ error: 'Failed to remove pin', message: error.message });
@@ -747,6 +773,22 @@ router.post('/pins/migrate', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Pin not found' });
     }
     
+    // S3 target: ask the migrator for this one now (any age). The result
+    // arrives as an event; the page shows it as the pin's S3 state.
+    const s3 = getS3Worker();
+    if (await s3.isOn()) {
+      try {
+        const answer = await s3.requestOne(cid);
+        logger.info(`Manual S3 copy requested for ${cid}: ${answer?.status}`);
+        const message = answer?.status === 'rejected'
+          ? `The migrator can't copy it: ${answer.reason}${answer.detail ? ` (${answer.detail})` : ''}`
+          : answer?.status === 'already_copied' ? 'Already in S3; recording it' : 'Copy to S3 requested. The Pins page shows it once the migrator reports back.';
+        return res.status(answer?.status === 'rejected' ? 409 : 200).json({ success: answer?.status !== 'rejected', cid, status: answer?.status, message });
+      } catch (e) {
+        return res.status(e.status || 502).json({ success: false, error: e.message, message: e.message });
+      }
+    }
+
     // Check if already migrated
     if (pin.migrated) {
       return res.status(400).json({ error: 'Pin already migrated', message: 'This pin is already marked as migrated' });
@@ -817,6 +859,50 @@ router.post('/pins/migrate', requireAuth, async (req, res) => {
   } catch (error) {
     logger.error('Failed to start migration:', error);
     res.status(500).json({ error: 'Failed to start migration', message: error.message });
+  }
+});
+
+/**
+ * Migration target: 'supernode' (pin it there, the old way) or 's3' (ask
+ * snapie-migrator). Switching to s3 needs the migrator's settings in .env
+ * and the migrator answering with our token.
+ */
+router.get('/settings/migration-target', async (req, res) => {
+  try {
+    const db = getDatabase();
+    const target = await db.getMigrationTarget();
+    const missing = missingSettings();
+    const ping = missing.length ? null : await getMigratorClient().ping();
+    res.json({ success: true, target, migrator: { missing, ping } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/settings/migration-target', requireAuth, async (req, res) => {
+  try {
+    const { target } = req.body || {};
+    if (!['supernode', 's3'].includes(target)) return res.status(400).json({ success: false, error: 'target must be supernode or s3' });
+    if (target === 's3') {
+      const missing = missingSettings();
+      if (missing.length) return res.status(409).json({ success: false, error: `Set in .env first: ${missing.join(', ')}` });
+      const ping = await getMigratorClient().ping();
+      if (!ping.ok) return res.status(409).json({ success: false, error: `Migrator not usable: ${ping.detail}` });
+    }
+    const db = getDatabase();
+    const before = await db.getMigrationTarget();
+    await db.setConfig('migration_target', target);
+    await db.logEvent({
+      event_type: 'config_change',
+      severity: 'info',
+      message: `Migration target: ${before} → ${target}`,
+      metadata: { before, target }
+    });
+    logger.info(`Migration target changed: ${before} -> ${target}`);
+    res.json({ success: true, target });
+  } catch (error) {
+    logger.error('Failed to change migration target:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -1177,6 +1263,11 @@ router.post('/discord/test', async (req, res) => {
  */
 router.post('/pins/heal-overdue', requireAuth, async (req, res) => {
   try {
+    const s3 = getS3Worker();
+    if (await s3.isOn()) {
+      const r = await s3.catchUp();
+      return res.json({ success: true, message: `Asked the migrator about ${r.checked} unanswered request(s); ${r.updated} updated, ${r.archived} archived`, estimated_duration: 'done', count: r.checked });
+    }
     const db = getDatabase();
     const worker = migrationWorker.getMigrationWorker();
 

@@ -287,6 +287,47 @@ Environment=NODE_ENV=production
 Environment=NODE_OPTIONS=--max-old-space-size=2048
 ```
 
+### S3 copies through snapie-migrator
+
+Videos used to be pinned to the supernode before the hotnode let them go.
+Now they can be copied to S3 instead, by
+[snapie-migrator](https://github.com/Mantequilla-Soft/snapie-migrator) running
+on this same VPS (its DEPLOYMENT.md, "Hotnode `.env`"). The hotnode copies
+nothing itself: it asks the migrator by CID and records what comes back.
+
+1. In this `.env`, set `MIGRATOR_SERVICE_URL` (`http://127.0.0.1:3021`),
+   `MIGRATOR_SERVICE_TOKEN` and `HOTNODE_CALLBACK_SECRET`. Use the same token
+   and secret as in the migrator's `.env`. Its `HOTNODE_CALLBACK_URL` points
+   here: `http://127.0.0.1:3101/api/s3/callback`.
+2. Restart. **Settings → Where Videos Go Before Unpinning** should say
+   "Migrator: reachable, token accepted".
+3. Choose **S3** and save.
+
+With S3 on:
+- The migration worker keeps the same schedule, eligibility age and batch size
+  (the rate settings still apply). It asks the migrator to copy each pin
+  instead of pinning it to the supernode. Nothing goes to the supernode any more.
+- **Pins** shows each pin's S3 state: requested, copied, archived, failed or
+  rejected, and links each video and channel to 3speak.tv. **Copy to S3**
+  asks for one pin now, at any age.
+- Cleanup only unpins a dormant pin once the migrator has confirmed its S3
+  copy. After the unpin the video is flipped to `archived` and plays straight
+  from S3. Manual Unpin follows the same rule.
+- Every hour (:25) the hotnode catches up with the migrator. It asks about
+  requests that got no answer in 6 hours, and retries flips to `archived`
+  that failed. A failed copy is asked for again after 1, 2, 4 and 8 hours; after
+  that there is one Discord alert, and the pin stays here.
+- `migrated` still means "safe off this node", so the overdue counts, `/health`
+  and the stats pages work as before.
+
+The migrator's events arrive on `POST /api/s3/callback`, signed with
+`HOTNODE_CALLBACK_SECRET`. That path only accepts requests made directly on
+this machine; keep the `location /api/s3/` block from
+`config/nginx-ipfs-hotnode.conf.example` in the admin site so nginx refuses it
+too.
+
+To go back, choose **Supernode** again. Records of S3 copies are kept.
+
 ### Database Location
 
 The SQLite database is stored at:
@@ -373,6 +414,11 @@ ipfs swarm peers | wc -l
 ```
 
 ### Migration Not Working
+
+With the S3 target: check Settings ("Migrator: …"), the migrator's own log,
+and the Pins page filtered by S3 copy = Failed or Requested.
+
+With the supernode target:
 
 ```bash
 # Check supernode connectivity

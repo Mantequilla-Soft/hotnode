@@ -24,12 +24,18 @@ const syncLastServedWorker = require('./workers/syncLastServedWorker');
 const healthRoutes = require('./routes/health');
 const adminRoutes = require('./routes/admin');
 const apiRoutes = require('./routes/api');
+const { createS3CallbackRouter } = require('./routes/s3Callback');
+const { getS3Worker } = require('./workers/s3Worker');
 
 logger.info('Configuration loaded successfully');
 
 // Initialize Express app
 const app = express();
 const PORT = config.hotnode.port || 3101;
+
+// Events from snapie-migrator: signed over the raw body, so this is mounted
+// before express.json() parses it (routes/s3Callback.js).
+app.use('/api/s3/callback', createS3CallbackRouter());
 
 // Middleware
 app.use(express.json());
@@ -142,6 +148,17 @@ function scheduleWorkers() {
       await migrationWorker.run();
     } catch (error) {
       logger.error('Migration worker failed:', error);
+    }
+  });
+
+  // S3 catch-up - Every hour at :25 (S3 target only): requests that never got
+  // an event, and unpinned copies whose flip to archived hasn't happened.
+  cron.schedule('25 * * * *', async () => {
+    try {
+      const s3 = getS3Worker();
+      if (await s3.isOn()) await s3.catchUp();
+    } catch (error) {
+      logger.error('S3 catch-up failed:', error);
     }
   });
 
