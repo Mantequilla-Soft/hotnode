@@ -1,0 +1,7 @@
+<%# The video a pin belongs to, linked to 3speak.tv so it can be checked in one click. %>
+<% if (pin.owner && pin.permlink) { %>
+  <a class="video-link" href="https://3speak.tv/watch?v=<%= encodeURIComponent(pin.owner) %>/<%= encodeURIComponent(pin.permlink) %>" target="_blank" rel="noopener noreferrer" title="Watch on 3speak.tv"><%= pin.permlink %></a>
+  <br><a class="owner-link" href="https://3speak.tv/user/<%= encodeURIComponent(pin.owner) %>" target="_blank" rel="noopener noreferrer" title="Channel on 3speak.tv">@<%= pin.owner %></a>
+<% } else { %>
+  <span class="text-muted" title="Not matched to a video in Mongo">—</span>
+<% } %>

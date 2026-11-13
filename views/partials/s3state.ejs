@@ -1,0 +1,21 @@
+<%# Where a pin's S3 copy stands (workers/s3Worker.js). %>
+<% const st = pin.s3_state; const d = (v) => v ? new Date(v).toLocaleString() : ''; %>
+<% if (!st) { %>
+  <span class="badge badge-s3-none">not yet</span>
+<% } else if (st === 'requested') { %>
+  <span class="badge badge-s3-requested" title="Asked <%= d(pin.s3_requested_at) %>">requested</span>
+<% } else if (st === 'copied') { %>
+  <span class="badge badge-s3-copied" title="<%= pin.s3_url || '' %>">✓ copied</span><br><small><%= d(pin.s3_copied_at) %></small>
+<% } else if (st === 'archived') { %>
+  <span class="badge badge-s3-archived" title="Plays from S3 only: <%= pin.s3_url || '' %>">archived</span><br><small><%= d(pin.s3_archived_at) %></small>
+<% } else if (st === 'failed') { %>
+  <span class="badge badge-s3-failed" title="<%= pin.s3_error || '' %>">failed: <%= pin.s3_error_code %></span>
+  <br><small><%= pin.s3_retryable ? `retry after ${d(pin.s3_next_attempt_at)}` : 'not retried automatically' %></small>
+<% } else if (st === 'rejected') { %>
+  <span class="badge badge-s3-rejected" title="<%= pin.s3_error || '' %>">rejected: <%= pin.s3_error_code %></span>
+<% } else { %>
+  <span class="badge"><%= st %></span>
+<% } %>
+<% if (locals.migratorUrl && pin.owner) { %>
+  <br><a class="small-link" href="<%= migratorUrl %>/#<%= encodeURIComponent(pin.owner) %>" target="_blank" rel="noopener noreferrer">migrator</a>
+<% } %>

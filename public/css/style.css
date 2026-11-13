@@ -415,6 +415,20 @@ input:checked + .slider:before {
   color: #721c24;
 }
 
+/* S3 copy states (views/partials/s3state.ejs) */
+.badge-s3-none { background-color: #eef0f3; color: #4b5563; }
+.badge-s3-requested { background-color: #fef3cd; color: #856404; }
+.badge-s3-copied { background-color: #d4edda; color: #155724; }
+.badge-s3-archived { background-color: #d1ecf1; color: #0c5460; }
+.badge-s3-failed,
+.badge-s3-rejected { background-color: #f8d7da; color: #721c24; }
+
+/* The video a pin belongs to (views/partials/video.ejs) */
+.video-cell { min-width: 9rem; max-width: 16rem; word-break: break-word; }
+.video-cell .owner-link { font-size: 0.85rem; color: #6b7280; }
+.small-link { font-size: 0.8rem; }
+.s3-summary a { margin: 0 0.25rem; }
+
 /* CID */
 code.cid {
   font-family: 'Courier New', monospace;

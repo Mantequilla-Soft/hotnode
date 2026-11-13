@@ -60,6 +60,7 @@ router.get('/', async (req, res) => {
     const capacityPaused = await isPaused(db);
     
     res.render('dashboard', {
+      target: await db.getMigrationTarget(),
       enabled,
       capacityPaused,
       thresholds,
@@ -84,8 +85,9 @@ router.get('/', async (req, res) => {
  */
 router.get('/pins', async (req, res) => {
   try {
-    const { status, search, page = 1 } = req.query;
+    const { status, search, s3, page = 1 } = req.query;
     const db = getDatabase();
+    const target = await db.getMigrationTarget();
     
     const limit = 50;
     const offset = (parseInt(page, 10) - 1) * limit;
@@ -98,9 +100,14 @@ router.get('/pins', async (req, res) => {
       params.push(status);
     }
     
+    // One box finds a CID, a channel or a permlink.
     if (search) {
-      sql += ' AND cid LIKE ?';
-      params.push(`%${search}%`);
+      sql += ' AND (cid LIKE ? OR owner LIKE ? OR permlink LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    if (s3) {
+      sql += s3 === 'none' ? ' AND s3_state IS NULL' : ' AND s3_state = ?';
+      if (s3 !== 'none') params.push(s3);
     }
     
     sql += ' ORDER BY added_at DESC LIMIT ? OFFSET ?';
@@ -116,8 +123,12 @@ router.get('/pins', async (req, res) => {
       countParams.push(status);
     }
     if (search) {
-      countSql += ' AND cid LIKE ?';
-      countParams.push(`%${search}%`);
+      countSql += ' AND (cid LIKE ? OR owner LIKE ? OR permlink LIKE ?)';
+      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    if (s3) {
+      countSql += s3 === 'none' ? ' AND s3_state IS NULL' : ' AND s3_state = ?';
+      if (s3 !== 'none') countParams.push(s3);
     }
     
     const countResult = await db.get(countSql, countParams);
@@ -126,7 +137,9 @@ router.get('/pins', async (req, res) => {
     
     res.render('pins', {
       pins,
-      filters: { status, search },
+      target,
+      migratorUrl: config.migrator.public_url || null,
+      filters: { status, search, s3 },
       pagination: {
         page: parseInt(page, 10),
         totalPages,

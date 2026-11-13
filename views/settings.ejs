@@ -85,6 +85,24 @@
       </form>
     </div>
 
+    <!-- Migration target -->
+    <div class="card">
+      <h3>Where Videos Go Before Unpinning</h3>
+      <form id="migrationTargetForm">
+        <div class="form-group">
+          <label><input type="radio" name="migrationTarget" value="supernode" <%= dbConfig.migration_target !== 's3' ? 'checked' : '' %>> Supernode (IPFS pin, the old way)</label>
+          <label><input type="radio" name="migrationTarget" value="s3" <%= dbConfig.migration_target === 's3' ? 'checked' : '' %>> S3, through snapie-migrator</label>
+        </div>
+        <p id="migratorStatus" class="text-muted" style="font-size: 0.9rem;">Checking the migrator…</p>
+        <button type="submit" class="btn btn-primary">Save Target</button>
+      </form>
+      <div class="info-box" style="margin-top: 1rem;">
+        <strong>With S3:</strong> the migration worker asks the migrator on this server to copy each pin (same schedule, age and batch size as before), and the migrator reports back when each copy is verified.
+        Cleanup unpins a dormant pin only once its S3 copy is confirmed, then the video plays straight from S3.
+        Nothing is pinned to the supernode any more. Switching back to Supernode restores the old behaviour.
+      </div>
+    </div>
+
     <!-- Manual Actions -->
     <div class="card">
       <h3>Manual Actions</h3>
@@ -317,6 +335,38 @@
         showNotification('Error: ' + error.message, 'error');
       }
     }
+
+    async function loadMigratorStatus() {
+      const el = document.getElementById('migratorStatus');
+      try {
+        const response = await fetch('/api/settings/migration-target');
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || `HTTP ${response.status}`);
+        const m = data.migrator || {};
+        if (m.missing && m.missing.length) el.textContent = `Migrator not set up: add ${m.missing.join(', ')} to .env`;
+        else if (m.ping) el.textContent = m.ping.ok ? `Migrator: ${m.ping.detail}` : `Migrator problem: ${m.ping.detail}`;
+        el.style.color = m.ping && m.ping.ok ? '#15803d' : '#b91c1c';
+      } catch (error) {
+        el.textContent = 'Could not check the migrator: ' + error.message;
+      }
+    }
+    loadMigratorStatus();
+
+    document.getElementById('migrationTargetForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const target = document.querySelector('input[name="migrationTarget"]:checked').value;
+      if (target === 's3' && !confirm('Switch to S3?\n\nFrom now on pins are copied to S3 by the migrator, and cleanup only unpins pins whose S3 copy is confirmed.')) return;
+      try {
+        const response = await fetch('/api/settings/migration-target', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target })
+        });
+        const data = await response.json();
+        if (response.ok && data.success) showNotification(`Migration target: ${data.target}`, 'success');
+        else showNotification('Not changed: ' + (data.error || response.status), 'error');
+      } catch (error) {
+        showNotification('Error: ' + error.message, 'error');
+      }
+    });
 
     async function runMigration() {
       if (!confirm('Start migration worker now?')) return;

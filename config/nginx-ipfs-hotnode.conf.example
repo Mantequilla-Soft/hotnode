@@ -79,6 +79,12 @@ server {
     
     access_log /var/log/nginx/hotnode-admin.log combined;
     error_log /var/log/nginx/hotnode-admin-error.log;
+
+    # snapie-migrator's events: it calls 127.0.0.1:3101 directly, never
+    # through nginx (the app also refuses proxied requests here).
+    location /api/s3/ {
+        return 403;
+    }
     
     location / {
         proxy_pass http://127.0.0.1:3101;

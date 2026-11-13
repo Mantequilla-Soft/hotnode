@@ -5,6 +5,7 @@ const logger = require('../utils/logger');
 const config = require('../utils/config');
 const { LAST_SYNC_OK_KEY } = require('./syncLastServedWorker');
 const { getThresholds } = require('../utils/capacity');
+const { getS3Worker } = require('./s3Worker');
 
 /**
  * Cleanup Worker
@@ -49,7 +50,11 @@ class CleanupWorker {
         return { unpinned: 0, bytesFreed: 0, errors: [`Dormant unpin skipped: ${msg}`] };
       }
 
-      const pins = await this.db.getDormantPinsForCleanup(this.minAgeDays, this.dormantAfterDays);
+      // S3 target: a pin goes only once the migrator confirmed its S3 copy,
+      // and the video is then flipped to `archived` (straight to S3).
+      const s3 = getS3Worker();
+      const s3On = await s3.isOn();
+      const pins = await this.db.getDormantPinsForCleanup(this.minAgeDays, this.dormantAfterDays, { requireS3: s3On });
 
       if (pins.length === 0) {
         logger.info('No dormant pins to unpin');
@@ -76,6 +81,7 @@ class CleanupWorker {
           unpinned++;
           bytesFreed += pin.size_bytes || 0;
           logger.info(`Unpinned dormant: ${pin.cid} (owner=${pin.owner || 'unknown'})`);
+          if (s3On) await s3.archiveAfterUnpin(pin.cid);
         } catch (error) {
           errors.push(`${pin.cid}: ${error.message}`);
           logger.error(`Failed to unpin ${pin.cid}:`, error.message);

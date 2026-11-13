@@ -4,24 +4,15 @@ const sqlite3 = require('sqlite3');
 require('./helpers');
 const { Database } = require('../../utils/database');
 
-// Subset of the pins schema from scripts/initDatabase.js that the stats
-// queries touch.
-const PINS_SCHEMA = `
-  CREATE TABLE pins (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    cid TEXT UNIQUE NOT NULL,
-    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    size_bytes INTEGER,
-    status TEXT DEFAULT 'pending',
-    migrated BOOLEAN DEFAULT 0
-  )`;
+// The real schema (scripts/initDatabase.js), so these tests can't drift from it.
+const { schema } = require('../../scripts/initDatabase');
 
 let db;
 
 beforeEach(async () => {
   db = new Database();
   db.db = new sqlite3.Database(':memory:');
-  await db.run(PINS_SCHEMA);
+  await new Promise((resolve, reject) => db.db.exec(schema, (err) => (err ? reject(err) : resolve())));
 });
 
 afterEach(() => new Promise(resolve => db.db.close(resolve)));

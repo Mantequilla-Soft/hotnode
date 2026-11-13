@@ -30,9 +30,11 @@ function updateUIForAuth() {
     if (loginBtn) loginBtn.style.display = 'none';
     if (logoutBtn) logoutBtn.style.display = 'inline-block';
     
-    // Enable all form inputs and buttons
-    document.querySelectorAll('input:disabled, button:disabled, select:disabled').forEach(el => {
+    // Enable what the logged-out state disabled. Only those: a button the
+    // page disabled on purpose (Unpin before a copy exists) stays disabled.
+    document.querySelectorAll('[data-auth-disabled]').forEach(el => {
       el.disabled = false;
+      delete el.dataset.authDisabled;
     });
     
     // Remove disabled class from buttons
@@ -49,8 +51,9 @@ function updateUIForAuth() {
     );
     writeElements.forEach(el => {
       // Skip the login form elements
-      if (!el.closest('#loginModal')) {
+      if (!el.closest('#loginModal') && !el.disabled) {
         el.disabled = true;
+        el.dataset.authDisabled = '1';
         if (el.tagName === 'BUTTON' || el.classList.contains('btn')) {
           el.classList.add('btn-disabled-auth');
           el.title = 'Login required';

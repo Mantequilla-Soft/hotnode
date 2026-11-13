@@ -2,6 +2,7 @@ const { getDatabase } = require('../utils/database');
 const { getMigrationWorker } = require('./migrationWorker');
 const logger = require('../utils/logger');
 const { getDiscordNotifier } = require('../utils/discord');
+const { getS3Worker } = require('./s3Worker');
 
 /**
  * Healing Worker
@@ -33,6 +34,14 @@ class HealingWorker {
   async run() {
     logger.info('🩺 Starting healing worker...');
     const startTime = Date.now();
+
+    // S3 target: nothing goes to the supernode any more; healing is the
+    // migrator catch-up (also run hourly from app.js).
+    const s3 = getS3Worker();
+    if (await s3.isOn()) {
+      const r = await s3.catchUp();
+      return { target: 's3', checked: r.checked, healed: r.updated, stillOverdue: 0, errors: r.errors.length };
+    }
     
     try {
       // Get all overdue pins (migrated=0, age>7 days)

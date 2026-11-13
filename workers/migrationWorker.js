@@ -4,6 +4,7 @@ const { getIPFSClient } = require('../utils/ipfs');
 const { getDiscordNotifier } = require('../utils/discord');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
+const { getS3Worker } = require('./s3Worker');
 
 /**
  * Migration Worker
@@ -255,7 +256,13 @@ class MigrationWorker {
       this.batchSize = rateConfig.batchSize;
       
       logger.info(`Migration worker: ${overdueCount} overdue pins, mode=${rateConfig.mode}, batch=${rateConfig.batchSize} (was ${originalBatchSize})`);
-      
+
+      // S3 target: ask snapie-migrator instead of pinning to the supernode.
+      // Same schedule, eligibility age and batch size; the outcome arrives
+      // later as signed events (workers/s3Worker.js), which count the stats.
+      const s3 = getS3Worker();
+      if (await s3.isOn()) return await this.requestS3Copies(s3);
+
       const result = await this.migratePins();
       
       // Update last run time
@@ -313,6 +320,20 @@ class MigrationWorker {
     }
   }
 }
+
+MigrationWorker.prototype.requestS3Copies = async function requestS3Copies(s3) {
+  const r = await s3.requestBatch(this.batchSize);
+  await this.db.setConfig('last_migration_run', new Date().toISOString());
+  const summary = { target: 's3', requested: r.requested, already_copied: r.already, rejected: r.rejected };
+  await this.db.logEvent({
+    event_type: 'migration',
+    severity: r.rejected ? 'warning' : 'info',
+    message: `Asked the migrator to copy ${r.requested + r.already} pins to S3${r.rejected ? `, ${r.rejected} rejected` : ''}`,
+    metadata: summary
+  });
+  logger.info(`S3 copy requests: ${JSON.stringify(summary)}`);
+  return summary;
+};
 
 // Singleton instance
 let instance = null;
