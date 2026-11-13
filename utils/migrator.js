@@ -84,11 +84,17 @@ class MigratorClient {
   }
 
   /** POST /api/jobs { cids, mode: 'hot' } → [{ cid, status, items?, reason?, detail? }] */
+  // A later chunk failing keeps the answers already given (error.accepted).
   async requestCids(cids) {
     const out = [];
     for (let i = 0; i < cids.length; i += MAX_CIDS) {
-      const r = await this.call('POST', '/api/jobs', { cids: cids.slice(i, i + MAX_CIDS), mode: 'hot' });
-      out.push(...(r?.cids || []));
+      try {
+        const r = await this.call('POST', '/api/jobs', { cids: cids.slice(i, i + MAX_CIDS), mode: 'hot' });
+        out.push(...(r?.cids || []));
+      } catch (e) {
+        e.accepted = out;
+        throw e;
+      }
     }
     return out;
   }

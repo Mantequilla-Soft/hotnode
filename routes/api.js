@@ -541,9 +541,10 @@ router.post('/pins/remove', requireAuth, async (req, res) => {
 
     // S3 target: only a copy the migrator confirmed may leave this node.
     if (s3On) {
+      // An untracked CID has no confirmed copy either.
       const pin = await db.getPin(cid);
-      if (pin && pin.s3_state !== 'copied') {
-        return res.status(409).json({ error: 'Not copied to S3', message: `The S3 copy isn't confirmed (${pin.s3_state || 'not requested'}); migrate it first` });
+      if (!pin || pin.s3_state !== 'copied') {
+        return res.status(409).json({ error: 'Not copied to S3', message: `The S3 copy isn't confirmed (${(pin && pin.s3_state) || 'not requested'}); migrate it first` });
       }
     }
     

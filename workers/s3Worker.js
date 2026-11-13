@@ -44,10 +44,17 @@ class S3Worker {
   async requestBatch(limit) {
     const pins = await this.db.getPinsForS3Request(config.migration.start_after_days, limit);
     if (!pins.length) return { requested: 0, rejected: 0, already: 0, answers: [] };
-    const answers = await this.client.requestCids(pins.map((p) => p.cid));
+    const sentAt = this.iso();
+    let answers;
+    try {
+      answers = await this.client.requestCids(pins.map((p) => p.cid));
+    } catch (e) {
+      for (const a of e.accepted || []) await this.applyAnswer(a, sentAt);
+      throw e;
+    }
     const counts = { requested: 0, rejected: 0, already: 0, answers };
     for (const a of answers) {
-      await this.applyAnswer(a);
+      await this.applyAnswer(a, sentAt);
       if (a.status === 'rejected') counts.rejected++;
       else if (a.status === 'already_copied') counts.already++;
       else counts.requested++;
@@ -61,23 +68,31 @@ class S3Worker {
     if (!pin) throw Object.assign(new Error('Pin not found'), { status: 404 });
     if (['copied', 'archived'].includes(pin.s3_state)) throw Object.assign(new Error(`Already ${pin.s3_state} in S3`), { status: 400 });
     if (pin.unpinned) throw Object.assign(new Error('Not pinned here any more; the migrator could not read it from this node'), { status: 400 });
+    const sentAt = this.iso();
     const [answer] = await this.client.requestCids([cid]);
-    await this.applyAnswer(answer);
+    await this.applyAnswer(answer, sentAt);
     return answer;
   }
 
-  async applyAnswer(a) {
+  /**
+   * Record the migrator's answer to a request sent at `sentAt`. One
+   * conditional UPDATE, because an event for the same CID may already have
+   * arrived while the answers were being applied: a copy (copied, archived)
+   * is never overwritten, nor a failure recorded after the request was sent.
+   */
+  async applyAnswer(a, sentAt = this.iso()) {
     if (!a?.cid) return;
+    // COALESCE: a NULL comparison would make the whole condition NULL (no update).
+    const keep = `COALESCE(s3_state, '') IN ('copied', 'archived') OR (COALESCE(s3_state, '') = 'failed' AND COALESCE(last_retry_at, '') > ?)`;
     if (a.status === 'rejected') {
-      await this.db.updatePin(a.cid, {
-        s3_state: 'rejected', s3_error_code: a.reason || 'rejected', s3_error: a.detail || null,
-        s3_retryable: 0, s3_next_attempt_at: null,
-      });
+      await this.db.run(`UPDATE pins SET s3_state = 'rejected', s3_error_code = ?, s3_error = ?, s3_retryable = 0, s3_next_attempt_at = NULL
+        WHERE cid = ? AND NOT (${keep})`, [a.reason || 'rejected', a.detail || null, a.cid, sentAt]);
       logger.warn(`S3 copy rejected for ${a.cid}: ${a.reason}${a.detail ? ` (${a.detail})` : ''}`);
       return;
     }
     // queued, in_progress, already_copied: the event follows.
-    await this.db.updatePin(a.cid, { s3_state: 'requested', s3_requested_at: this.iso() });
+    await this.db.run(`UPDATE pins SET s3_state = 'requested', s3_requested_at = ? WHERE cid = ? AND NOT (${keep})`,
+      [this.iso(), a.cid, sentAt]);
   }
 
   // ------------------------------------------------------------ events
@@ -116,6 +131,11 @@ class S3Worker {
   }
 
   async markFailed(pin, { code, message, retryable }) {
+    // A late failure (an older attempt) never undoes a confirmed copy.
+    if (['copied', 'archived'].includes(pin.s3_state)) {
+      logger.warn(`Ignored a stale S3 failure for ${pin.cid}: already ${pin.s3_state}`);
+      return;
+    }
     const attempts = (pin.s3_attempts || 0) + 1;
     const again = !!retryable && attempts < MAX_ATTEMPTS;
     await this.db.updatePin(pin.cid, {

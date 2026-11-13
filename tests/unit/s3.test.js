@@ -181,6 +181,55 @@ describe('events', () => {
   });
 });
 
+describe('races and late answers (review fixes)', () => {
+  test('an answer applied after the copied event does not undo it; a failure recorded after the request is kept', async () => {
+    await addPin(CID);
+    await addPin(CID2);
+    await addPin(CID3);
+    const sent = new Date(clock - 1000).toISOString();
+    // Events that arrived while the batch answers were still being applied:
+    await worker.handleEvent({ event: 'copied', cid: CID, s3_url: S3_URL });
+    await worker.handleEvent({ event: 'failed', cid: CID2, error: { code: 'bad_car' }, retryable: false });
+    await worker.applyAnswer({ cid: CID, status: 'queued' }, sent);
+    await worker.applyAnswer({ cid: CID2, status: 'queued' }, sent);
+    await worker.applyAnswer({ cid: CID3, status: 'rejected', reason: 'not_ready' }, sent);
+    assert.equal((await db.getPin(CID)).s3_state, 'copied');
+    assert.equal((await db.getPin(CID2)).s3_state, 'failed');
+    assert.equal((await db.getPin(CID3)).s3_state, 'rejected');   // NULL state: still updated
+    // A failure from before the request is replaced by the new request.
+    await worker.applyAnswer({ cid: CID2, status: 'queued' }, new Date(clock + 1000).toISOString());
+    assert.equal((await db.getPin(CID2)).s3_state, 'requested');
+  });
+
+  test('a late failure never undoes a confirmed copy', async () => {
+    await addPin(CID, { s3_state: 'copied' });
+    await worker.handleEvent({ event: 'failed', cid: CID, error: { code: 'download_failed' }, retryable: true });
+    assert.equal((await db.getPin(CID)).s3_state, 'copied');
+    assert.equal(alerts.length, 0);
+  });
+
+  test('answers already given are kept when a later chunk fails', async () => {
+    for (const c of [CID, CID2]) await addPin(c);
+    client.requestCids = async () => { throw Object.assign(new Error('migrator unreachable'), { accepted: [{ cid: CID, status: 'queued' }] }); };
+    await assert.rejects(worker.requestBatch(10), /unreachable/);
+    assert.equal((await db.getPin(CID)).s3_state, 'requested');
+    assert.equal((await db.getPin(CID2)).s3_state, null);
+  });
+
+  test('the client attaches the answers already given to the error', async () => {
+    let n = 0;
+    const fetchImpl = async (url, opts) => {
+      if (n++) return new Response('{"error":"down"}', { status: 503 });
+      const { cids } = JSON.parse(opts.body);
+      return new Response(JSON.stringify({ cids: cids.map((cid) => ({ cid, status: 'queued' })) }), { status: 202 });
+    };
+    const c = new MigratorClient({ cfg: { url: 'http://127.0.0.1:3021', token: 't'.repeat(40), callback_secret: SECRET }, fetchImpl });
+    const err = await c.requestCids(Array.from({ length: 120 }, (_, i) => `c${i}`)).catch((e) => e);
+    assert.equal(err.status, 503);
+    assert.equal(err.accepted.length, 100);
+  });
+});
+
 describe('cleanup gate', () => {
   test('with S3 on, only confirmed copies are dormant candidates', async () => {
     await addPin(CID, { daysAgo: 60, s3_state: 'copied' });
@@ -275,6 +324,14 @@ describe('POST /api/s3/callback', () => {
     assert.equal((await db.getPin(CID)).s3_state, 'copied');
     const again = await (await post(ev)).json();
     assert.equal(again.duplicate, true);
+  });
+
+  test('a database error while storing the event id answers 500 instead of crashing', async () => {
+    const real = db.recordS3Event.bind(db);
+    db.recordS3Event = async () => { throw new Error('SQLITE_BUSY'); };
+    const r = await post({ id: 'evt_3', event: 'copied', cid: CID, s3_url: S3_URL });
+    db.recordS3Event = real;
+    assert.equal(r.status, 500);
   });
 
   test('a failure while recording answers 500 and forgets the id, so the retry works', async () => {

@@ -34,12 +34,15 @@ function createS3CallbackRouter({ db = getDatabase(), worker = getS3Worker(), se
     try { ev = JSON.parse(body); } catch (_) { return res.status(400).json({ error: 'not JSON' }); }
     if (!ev?.id || !ev.event || !ev.cid) return res.status(400).json({ error: 'id, event and cid are required' });
 
-    if (!(await db.recordS3Event(ev.id, ev.event, ev.cid))) return res.json({ ok: true, duplicate: true });
+    let recorded = false;
     try {
+      recorded = await db.recordS3Event(ev.id, ev.event, ev.cid);
+      if (!recorded) return res.json({ ok: true, duplicate: true });
       await worker.handleEvent(ev);
     } catch (e) {
-      // Not handled: forget the id so the migrator's retry is processed.
-      await db.forgetS3Event(ev.id).catch(() => {});
+      // Not handled: forget the id (only if this request stored it) so the
+      // migrator's retry is processed.
+      if (recorded) await db.forgetS3Event(ev.id).catch(() => {});
       logger.error(`S3 callback ${ev.event} ${ev.cid} failed:`, e.message);
       return res.status(500).json({ error: 'not recorded' });
     }

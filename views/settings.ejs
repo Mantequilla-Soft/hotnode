@@ -356,7 +356,9 @@
     async function loadMigratorStatus() {
       const el = document.getElementById('migratorStatus');
       try {
-        const data = await (await fetch('/api/settings/migration-target')).json();
+        const response = await fetch('/api/settings/migration-target');
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || `HTTP ${response.status}`);
         const m = data.migrator || {};
         if (m.missing && m.missing.length) el.textContent = `Migrator not set up: add ${m.missing.join(', ')} to .env`;
         else if (m.ping) el.textContent = m.ping.ok ? `Migrator: ${m.ping.detail}` : `Migrator problem: ${m.ping.detail}`;
