@@ -2,6 +2,13 @@
 
 Lightweight IPFS hot node service that provides temporary high-speed storage for video uploads, automatically migrates content to supernode within 7 days, and provides operators with an admin dashboard for monitoring and manual intervention.
 
+> **New to this deployment?** A modern hotnode copies videos to S3 instead of
+> pushing them to the supernode, which means it runs alongside a local Kubo daemon
+> **and** the [snapie-migrator](https://github.com/Mantequilla-Soft/snapie-migrator)
+> app on the same VPS. See **[ECOSYSTEM.md](ECOSYSTEM.md)** for the whole-ecosystem
+> overview and setup order, then [DEPLOYMENT.md](DEPLOYMENT.md) for the step-by-step
+> install.
+
 ## Features
 
 - 🚀 Automatic log parsing and pin tracking
