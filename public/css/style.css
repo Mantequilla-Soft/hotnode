@@ -657,6 +657,7 @@ footer {
   text-align: center;
 }
 
+.modal-content input[type="text"],
 .modal-content input[type="password"] {
   width: 100%;
   padding: 0.75rem;
@@ -1078,3 +1079,6 @@ select:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Keychain login (views/partials/login.ejs) */
+.login-error { margin: 0.75rem 0 0; padding: 0.5rem 0.75rem; border-radius: 4px; background: #fef2f2; color: #991b1b; font-size: 0.9rem; }

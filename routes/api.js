@@ -19,15 +19,12 @@ const mongoValidator = require('../workers/mongoValidator');
  * These endpoints provide control and data for the admin dashboard
  */
 
-/**
- * Authentication middleware - require admin password
- */
-function requireAuth(req, res, next) {
-  if (req.session.authenticated) {
-    return next();
-  }
-  res.status(401).json({ error: 'Authentication required' });
-}
+// Only a Keychain-verified account in ALLOWED_USERS (utils/auth.js).
+const { getAuth, requireAuth } = require('../utils/auth');
+const rateLimit = require('express-rate-limit');
+
+// Login attempts per IP: enough for people, not for guessing.
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 40, standardHeaders: true, legacyHeaders: false });
 
 /**
  * PUBLIC VALIDATION API
@@ -144,35 +141,38 @@ router.post('/validate/batch', async (req, res) => {
 });
 
 /**
- * Login endpoint
+ * Login with Hive Keychain: a one-time challenge, signed with the posting key.
  */
-router.post('/auth/login', async (req, res) => {
+router.get('/auth/challenge', authLimiter, (req, res) => {
   try {
-    const { password } = req.body;
-    
-    if (!password) {
-      return res.status(400).json({ error: 'Password required' });
-    }
-    
-    const adminPassword = process.env.ADMIN_PASSWORD;
-    
-    if (!adminPassword) {
-      logger.error('ADMIN_PASSWORD not set in environment');
-      return res.status(500).json({ error: 'Authentication not configured' });
-    }
-    
-    if (password === adminPassword) {
-      req.session.authenticated = true;
-      logger.info('Admin authenticated successfully');
-      return res.json({ success: true });
-    } else {
-      logger.warn('Failed authentication attempt');
-      return res.status(401).json({ error: 'Invalid password' });
-    }
+    res.json(getAuth().challenge(req.query.user));
   } catch (error) {
-    logger.error('Login error:', error);
-    res.status(500).json({ error: 'Login failed' });
+    res.status(error.status || 400).json({ error: error.message });
   }
+});
+
+router.post('/auth/verify', authLimiter, async (req, res) => {
+  if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
+    logger.error('Login refused: SESSION_SECRET must be set (at least 32 characters)');
+    return res.status(500).json({ error: 'Login is not configured on this node (SESSION_SECRET)' });
+  }
+  let who;
+  try {
+    who = await getAuth().verify(req.body || {});
+  } catch (error) {
+    logger.warn(`Failed login for @${String((req.body || {}).user || '?').slice(0, 20)}: ${error.message}`);
+    return res.status(401).json({ error: error.message });
+  }
+  // A fresh session id on login (no session fixation).
+  req.session.regenerate((err) => {
+    if (err) {
+      logger.error('Session error:', err);
+      return res.status(500).json({ error: 'Login failed' });
+    }
+    req.session.user = who.user;
+    logger.info(`Login: @${who.user}${who.authorized ? '' : ' (not in ALLOWED_USERS, read-only)'}`);
+    res.json({ success: true, user: who.user, authorized: who.authorized });
+  });
 });
 
 /**
@@ -189,10 +189,12 @@ router.post('/auth/logout', (req, res) => {
 });
 
 /**
- * Check authentication status
+ * Who is logged in, and may they act?
  */
 router.get('/auth/status', (req, res) => {
-  res.json({ authenticated: req.session.authenticated || false });
+  const user = req.session.user || null;
+  const authorized = getAuth().isAllowed(user);
+  res.json({ authenticated: authorized, user, authorized });
 });
 
 /**
@@ -1154,7 +1156,7 @@ router.get('/logs/recent', async (req, res) => {
 /**
  * Test Discord webhook
  */
-router.post('/discord/test', async (req, res) => {
+router.post('/discord/test', requireAuth, async (req, res) => {
   try {
     const discord = getDiscordNotifier();
     

@@ -54,6 +54,14 @@ const config = {
     ipfs_gateway: optional('IPFS_GATEWAY_URL', 'http://127.0.0.1:8080')
   },
   
+  // Admin login with Hive Keychain (utils/auth.js). Only these accounts can
+  // change anything; everyone else gets the read-only pages.
+  auth: {
+    allowed_users: optional('ALLOWED_USERS', '').split(',').map((u) => u.trim().toLowerCase().replace(/^@/, '')).filter(Boolean),
+    hive_api_nodes: optional('HIVE_API_NODES', 'https://api.hive.blog,https://api.deathwing.me,https://anyx.io')
+      .split(',').map((u) => u.trim()).filter(Boolean)
+  },
+
   supernode: {
     api: required('SUPERNODE_API'),
     verify_endpoint: '/api/v0/pin/ls',

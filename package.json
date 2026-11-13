@@ -7,7 +7,6 @@
     "start": "node app.js",
     "dev": "NODE_ENV=development node app.js",
     "init-db": "node scripts/initDatabase.js",
-
     "worker:validate": "node -e 'require(\"./workers/mongoValidator\").run().then(r => console.log(r))'",
     "worker:migrate": "node -e 'require(\"./workers/migrationWorker\").run().then(r => console.log(r))'",
     "worker:cleanup": "node -e 'require(\"./workers/cleanupWorker\").run().then(r => console.log(r))'",
@@ -24,6 +23,7 @@
   "author": "3Speak",
   "license": "MIT",
   "dependencies": {
+    "@hiveio/dhive": "^1.3.6",
     "axios": "^1.6.5",
     "chart.js": "^4.4.1",
     "dotenv": "^17.2.3",

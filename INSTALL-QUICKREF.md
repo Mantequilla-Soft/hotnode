@@ -79,7 +79,7 @@ sudo nano /opt/ipfs-hotnode/.env
 ```
 
 Set:
-- `ADMIN_PASSWORD`
+- `ALLOWED_USERS` (Hive accounts that log in with Keychain)
 - `SUPERNODE_API`
 
 ### 2. Start

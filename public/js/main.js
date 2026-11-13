@@ -3,13 +3,18 @@
 // Authentication state
 let isAuthenticated = false;
 
-// Check authentication status
+// Check authentication status: logged in with Keychain AND in ALLOWED_USERS.
+let currentUser = null;
 async function checkAuth() {
   try {
     const response = await fetch('/api/auth/status');
     const data = await response.json();
-    isAuthenticated = data.authenticated;
+    isAuthenticated = !!data.authorized;
+    currentUser = data.user || null;
     updateUIForAuth();
+    if (currentUser && !isAuthenticated) {
+      showNotification(`@${currentUser} is logged in but not in ALLOWED_USERS: read-only`, 'error');
+    }
   } catch (error) {
     console.error('Auth check failed:', error);
   }
@@ -60,7 +65,9 @@ function showLoginModal() {
   const modal = document.getElementById('loginModal');
   if (modal) {
     modal.style.display = 'flex';
-    document.getElementById('loginPassword').focus();
+    const input = document.getElementById('loginUser');
+    try { input.value = localStorage.getItem('hotnode_user') || ''; } catch (_) { /* storage blocked */ }
+    input.focus();
   }
 }
 
@@ -69,31 +76,58 @@ function hideLoginModal() {
   const modal = document.getElementById('loginModal');
   if (modal) {
     modal.style.display = 'none';
-    document.getElementById('loginPassword').value = '';
+    showLoginError('');
   }
 }
 
-// Login
-async function login(password) {
+function showLoginError(text) {
+  const el = document.getElementById('loginError');
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = text ? 'block' : 'none';
+}
+
+// Login with Hive Keychain: sign a one-time challenge with the posting key.
+async function login(rawUser) {
+  const user = String(rawUser || '').trim().toLowerCase().replace(/^@/, '');
+  if (!window.hive_keychain) {
+    return showLoginError('Hive Keychain is not installed in this browser. Install the extension, then reload the page.');
+  }
+  const submit = document.getElementById('loginSubmit');
+  submit.disabled = true;
+  submit.textContent = 'Waiting for Keychain…';
+  showLoginError('');
   try {
-    const response = await fetch('/api/auth/login', {
+    const challengeRes = await fetch(`/api/auth/challenge?user=${encodeURIComponent(user)}`);
+    const challenge = await challengeRes.json();
+    if (!challengeRes.ok) throw new Error(challenge.error || `HTTP ${challengeRes.status}`);
+
+    const signature = await new Promise((resolve, reject) => {
+      window.hive_keychain.requestSignBuffer(user, challenge.message, 'Posting', (r) => (
+        r && r.success ? resolve(r.result) : reject(new Error((r && r.message) || 'Keychain did not sign'))
+      ));
+    });
+
+    const response = await fetch('/api/auth/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password })
+      body: JSON.stringify({ user, message: challenge.message, signature })
     });
-    
     const data = await response.json();
-    
-    if (data.success) {
-      isAuthenticated = true;
-      hideLoginModal();
-      updateUIForAuth();
-      showNotification('Login successful', 'success');
-    } else {
-      showNotification('Invalid password', 'error');
+    if (!response.ok || !data.success) throw new Error(data.error || `HTTP ${response.status}`);
+
+    try { localStorage.setItem('hotnode_user', user); } catch (_) { /* storage blocked */ }
+    if (!data.authorized) {
+      showLoginError(`Signed in as @${user}, but this account is not in ALLOWED_USERS. Ask the node operator to add it.`);
+      return;
     }
+    // The pages render admin-only parts on the server: reload to get them.
+    location.reload();
   } catch (error) {
-    showNotification('Login failed: ' + error.message, 'error');
+    showLoginError('Login failed: ' + error.message);
+  } finally {
+    submit.disabled = false;
+    submit.textContent = 'Log in';
   }
 }
 
@@ -106,11 +140,7 @@ async function logout() {
     
     const data = await response.json();
     
-    if (data.success) {
-      isAuthenticated = false;
-      updateUIForAuth();
-      showNotification('Logged out successfully', 'success');
-    }
+    if (data.success) location.reload();
   } catch (error) {
     showNotification('Logout failed: ' + error.message, 'error');
   }
@@ -222,8 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (loginForm) {
     loginForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      const password = document.getElementById('loginPassword').value;
-      login(password);
+      login(document.getElementById('loginUser').value);
     });
   }
   

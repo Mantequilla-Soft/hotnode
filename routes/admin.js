@@ -5,6 +5,7 @@ const { getIPFSClient } = require('../utils/ipfs');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
 const { getThresholds, isPaused } = require('../utils/capacity');
+const { requireAuth } = require('../utils/auth');
 
 /**
  * Admin Dashboard Routes
@@ -173,7 +174,7 @@ router.get('/settings', async (req, res) => {
       thresholds,
       capacityPaused,
       gcLogs,
-      isAuthenticated: req.session.authenticated || false
+      isAuthenticated: res.locals.isAuthenticated
     });
   } catch (error) {
     logger.error('Settings page error:', error);
@@ -194,7 +195,7 @@ router.get('/stats', async (req, res) => {
           name: process.env.HOTNODE_NAME || 'IPFS Hot Node'
         }
       },
-      isAuthenticated: req.session.authenticated || false
+      isAuthenticated: res.locals.isAuthenticated
     });
   } catch (error) {
     logger.error('Stats page error:', error);
@@ -205,7 +206,7 @@ router.get('/stats', async (req, res) => {
 /**
  * Update migration rate settings
  */
-router.post('/settings/migration-rate', async (req, res) => {
+router.post('/settings/migration-rate', requireAuth, async (req, res) => {
   try {
     const { mode, maxDaily } = req.body;
     const db = getDatabase();

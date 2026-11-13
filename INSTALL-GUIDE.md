@@ -132,7 +132,7 @@ sudo nano /opt/ipfs-hotnode/.env
 ```
 
 **Required settings:**
-- `ADMIN_PASSWORD` - Dashboard login password
+- `ALLOWED_USERS` - Hive accounts that may log in with Hive Keychain
 - `NODE_TYPE` - Already set by installer (infrastructure/community)
 
 **Infrastructure nodes also need:**
