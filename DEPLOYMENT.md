@@ -4,6 +4,13 @@
 
 This guide covers the deployment and configuration of the IPFS Hot Node Service on Ubuntu/Debian systems.
 
+> **Deploying a hotnode that copies videos to S3?** Read
+> **[ECOSYSTEM.md](ECOSYSTEM.md)** first. A modern hotnode runs alongside a local
+> Kubo daemon **and** the [snapie-migrator](https://github.com/Mantequilla-Soft/snapie-migrator)
+> app on the same VPS; ECOSYSTEM.md explains the three pieces, how they wire up,
+> and the S3 copy → archive lifecycle. This guide installs the companion app
+> itself.
+
 ## System Requirements
 
 ### Hardware
@@ -294,6 +301,8 @@ Now they can be copied to S3 instead, by
 [snapie-migrator](https://github.com/Mantequilla-Soft/snapie-migrator) running
 on this same VPS (its DEPLOYMENT.md, "Hotnode `.env`"). The hotnode copies
 nothing itself: it asks the migrator by CID and records what comes back.
+See **[ECOSYSTEM.md](ECOSYSTEM.md)** for the full architecture, the matching
+migrator-side wiring, and the copy → archive lifecycle.
 
 1. In this `.env`, set `MIGRATOR_SERVICE_URL` (`http://127.0.0.1:3021`),
    `MIGRATOR_SERVICE_TOKEN` and `HOTNODE_CALLBACK_SECRET`. Use the same token
