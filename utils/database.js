@@ -216,7 +216,16 @@ class Database {
   }
 
   // Pins to ask the migrator about: held, valid, old enough, and either never
-  // asked or a retryable failure whose backoff has passed. Oldest first.
+  // asked or a retryable failure whose backoff has passed.
+  //
+  // At-risk content first: `migrated = 0` means the pin is not safe anywhere
+  // else (never pushed to the supernode), so those are the ones whose S3 copy
+  // actually matters — they are what the "overdue" metric and health alerts
+  // track. `migrated = 1` pins are already on the supernode, which has its own
+  // migrator copying that content to S3 over its fast local path; copying them
+  // from here is redundant and over the slow upload+CDN path. Order by
+  // `migrated` first so a backfill of already-safe pins can never starve the
+  // at-risk ones; `added_at ASC` is the tie-break (oldest first) within each.
   async getPinsForS3Request(startDays, limit) {
     const sql = `
       SELECT * FROM pins
@@ -225,7 +234,7 @@ class Database {
       AND julianday('now') - julianday(added_at) >= ?
       AND (s3_state IS NULL
         OR (s3_state = 'failed' AND s3_retryable = 1 AND julianday(s3_next_attempt_at) <= julianday('now')))
-      ORDER BY added_at ASC
+      ORDER BY migrated ASC, added_at ASC
       LIMIT ?
     `;
     return this.all(sql, [startDays, limit]);
