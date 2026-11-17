@@ -2,6 +2,7 @@ const { getDatabase } = require('../utils/database');
 const { getMongoDBClient } = require('../utils/mongo');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
+const { fillMissingEmbedUrls } = require('../utils/videoIdentity');
 
 /**
  * Sync Last-Served Worker
@@ -20,6 +21,11 @@ const config = require('../utils/config');
  * that completes with zero errors records LAST_SYNC_OK_KEY; the cleanup
  * worker skips dormancy unpinning unless that timestamp is recent.
  *
+ * It also fills in pins.embed_url (the public @owner/hive-permlink address)
+ * for held pins that don't have it yet - see fillMissingEmbedUrls. That part
+ * is display-only, so its failure is logged but never affects
+ * LAST_SYNC_OK_KEY.
+ *
  * Frequency: every RETENTION_SYNC_INTERVAL_HOURS (default 4).
  */
 const LAST_SYNC_OK_KEY = 'last_served_sync_ok_at';
@@ -32,6 +38,14 @@ class SyncLastServedWorker {
 
   async run() {
     const summary = { checked: 0, updated: 0, errors: [] };
+
+    try {
+      const embed = await fillMissingEmbedUrls(this.db, this.mongo, { heldOnly: true });
+      summary.embedUrlsFilled = embed.filled;
+      if (embed.filled > 0) logger.info(`Filled embed_url for ${embed.filled}/${embed.checked} pins`);
+    } catch (error) {
+      logger.warn(`Filling embed_url failed (display only, retried next run): ${error.message}`);
+    }
 
     try {
       const pins = await this.db.getPinsForServedSync();

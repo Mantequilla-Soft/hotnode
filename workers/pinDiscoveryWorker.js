@@ -1,6 +1,7 @@
 const { getDatabase } = require('../utils/database');
 const { getIPFSClient } = require('../utils/ipfs');
 const { getMongoDBClient } = require('../utils/mongo');
+const { videoIdentity } = require('../utils/videoIdentity');
 const { getDiscordNotifier } = require('../utils/discord');
 const logger = require('../utils/logger');
 
@@ -63,8 +64,7 @@ class PinDiscoveryWorker {
           // throws here, before insertPin, so the CID is retried next run
           // instead of being stored with a NULL identity.
           const video = await this.mongo.getVideoMetadata(cid);
-          const owner = video?.owner || null;
-          const permlink = video ? (video.permlink || video.hive_permlink || null) : null;
+          const { owner, permlink, embed_url } = videoIdentity(video);
 
           // Add to database with pending status
           await this.db.insertPin({
@@ -73,7 +73,8 @@ class PinDiscoveryWorker {
             status: 'pending',
             notes: 'Discovered by pin discovery worker',
             owner,
-            permlink
+            permlink,
+            embed_url
           });
 
           added++;

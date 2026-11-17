@@ -63,8 +63,8 @@ class Database {
   // Pin management methods
   async insertPin(pin) {
     const sql = `
-      INSERT OR IGNORE INTO pins (cid, size_bytes, status, notes, owner, permlink)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT OR IGNORE INTO pins (cid, size_bytes, status, notes, owner, permlink, embed_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
     return this.run(sql, [
       pin.cid,
@@ -72,7 +72,8 @@ class Database {
       pin.status || 'pending',
       pin.notes || null,
       pin.owner || null,
-      pin.permlink || null
+      pin.permlink || null,
+      pin.embed_url || null
     ]);
   }
 
@@ -91,6 +92,18 @@ class Database {
     const sql = `
       SELECT cid, owner, permlink FROM pins
       WHERE owner IS NOT NULL AND permlink IS NOT NULL AND unpinned = 0
+    `;
+    return this.all(sql);
+  }
+
+  // Pins whose public address isn't known yet. With heldOnly, just the ones
+  // still pinned here (what syncLastServedWorker keeps filling in, since a
+  // video is usually pinned before it's posted to Hive); without it, every
+  // pin (scripts/backfillEmbedUrl.js).
+  async getPinsMissingEmbedUrl({ heldOnly = false } = {}) {
+    const sql = `
+      SELECT cid FROM pins
+      WHERE embed_url IS NULL AND owner IS NOT NULL${heldOnly ? ' AND unpinned = 0' : ''}
     `;
     return this.all(sql);
   }

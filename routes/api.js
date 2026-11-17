@@ -4,6 +4,7 @@ const { getDatabase } = require('../utils/database');
 const { getIPFSClient } = require('../utils/ipfs');
 const { getDiscordNotifier } = require('../utils/discord');
 const { getMongoDBClient } = require('../utils/mongo');
+const { videoIdentity } = require('../utils/videoIdentity');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
 const capacity = require('../utils/capacity');
@@ -512,8 +513,7 @@ router.post('/pins/add', requireAuth, async (req, res) => {
       size_bytes: size,
       status: 'pending',
       notes: 'Manually added',
-      owner: video?.owner || null,
-      permlink: video ? (video.permlink || video.hive_permlink || null) : null
+      ...videoIdentity(video)
     });
     
     logger.info(`Manually pinned: ${cid}`);

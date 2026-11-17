@@ -168,6 +168,7 @@ run_migrations() {
     local known_migrations=(
         "scripts/migrateAddServingTracking.js"
         "scripts/migrateAddS3Tracking.js"
+        "scripts/migrateAddEmbedUrl.js"
     )
 
     for migration in "${known_migrations[@]}"; do

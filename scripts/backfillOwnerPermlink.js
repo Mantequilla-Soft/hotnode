@@ -16,6 +16,7 @@
  */
 const { getDatabase } = require('../utils/database');
 const { getMongoDBClient } = require('../utils/mongo');
+const { videoIdentity } = require('../utils/videoIdentity');
 
 async function backfill() {
   const db = getDatabase();
@@ -32,11 +33,9 @@ async function backfill() {
 
     for (const pin of pins) {
       const video = await mongo.getVideoMetadata(pin.cid);
-      if (video && video.owner && (video.permlink || video.hive_permlink)) {
-        await db.updatePin(pin.cid, {
-          owner: video.owner,
-          permlink: video.permlink || video.hive_permlink
-        });
+      const identity = videoIdentity(video);
+      if (identity.owner && identity.permlink) {
+        await db.updatePin(pin.cid, identity);
         resolved++;
       } else {
         // Genuinely not a known video (manual/arbitrary pin) - leave NULL.

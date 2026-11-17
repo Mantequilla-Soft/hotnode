@@ -1,6 +1,11 @@
-<%# The video a pin belongs to, linked to 3speak.tv so it can be checked in one click. %>
-<% if (pin.owner && pin.permlink) { %>
-  <a class="video-link" href="https://3speak.tv/watch?v=<%= encodeURIComponent(pin.owner) %>/<%= encodeURIComponent(pin.permlink) %>" target="_blank" rel="noopener noreferrer" title="Watch on 3speak.tv"><%= pin.permlink %></a>
+<%# The video a pin belongs to, linked to 3speak.tv so it can be checked in one click.
+    embed_url is the public @owner/hive-permlink address; permlink is only the
+    internal video ID, so it's shown just until the video is posted to Hive. %>
+<% if (pin.owner && pin.embed_url) { %>
+  <a class="video-link" href="https://3speak.tv/@<%= pin.embed_url.slice(1).split('/').map(encodeURIComponent).join('/') %>" target="_blank" rel="noopener noreferrer" title="Watch on 3speak.tv"><%= pin.embed_url.split('/').slice(1).join('/') %></a>
+  <br><a class="owner-link" href="https://3speak.tv/user/<%= encodeURIComponent(pin.owner) %>" target="_blank" rel="noopener noreferrer" title="Channel on 3speak.tv">@<%= pin.owner %></a>
+<% } else if (pin.owner && pin.permlink) { %>
+  <a class="video-link text-muted" href="https://play.3speak.tv/embed?v=<%= encodeURIComponent(pin.owner) %>/<%= encodeURIComponent(pin.permlink) %>" target="_blank" rel="noopener noreferrer" title="Not on Hive yet: opens the player by video ID"><%= pin.permlink %></a>
   <br><a class="owner-link" href="https://3speak.tv/user/<%= encodeURIComponent(pin.owner) %>" target="_blank" rel="noopener noreferrer" title="Channel on 3speak.tv">@<%= pin.owner %></a>
 <% } else { %>
   <span class="text-muted" title="Not matched to a video in Mongo">—</span>
