@@ -149,7 +149,7 @@ class S3Worker {
     if (!again) {
       await this.discord.send(
         '❌ S3 copy gave up',
-        [`**CID:** ${pin.cid}`, pin.owner ? `**Video:** ${pin.owner}/${pin.permlink}` : null, `**Error:** ${code}${message ? `: ${message}` : ''}`,
+        [`**CID:** ${pin.cid}`, pin.owner ? `**Video:** ${pin.embed_url || `${pin.owner}/${pin.permlink}`}` : null, `**Error:** ${code}${message ? `: ${message}` : ''}`,
           `**Attempts:** ${attempts}`, '', 'The pin stays here. Retry it from the Pins page once the cause is fixed.'].filter(Boolean).join('\n'),
         'red',
       ).catch((e) => logger.error('Discord alert failed:', e.message));

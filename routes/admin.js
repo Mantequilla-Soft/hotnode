@@ -102,8 +102,8 @@ router.get('/pins', async (req, res) => {
     
     // One box finds a CID, a channel or a permlink.
     if (search) {
-      sql += ' AND (cid LIKE ? OR owner LIKE ? OR permlink LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      sql += ' AND (cid LIKE ? OR owner LIKE ? OR permlink LIKE ? OR embed_url LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
     if (s3) {
       sql += s3 === 'none' ? ' AND s3_state IS NULL' : ' AND s3_state = ?';
@@ -123,8 +123,8 @@ router.get('/pins', async (req, res) => {
       countParams.push(status);
     }
     if (search) {
-      countSql += ' AND (cid LIKE ? OR owner LIKE ? OR permlink LIKE ?)';
-      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      countSql += ' AND (cid LIKE ? OR owner LIKE ? OR permlink LIKE ? OR embed_url LIKE ?)';
+      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
     if (s3) {
       countSql += s3 === 'none' ? ' AND s3_state IS NULL' : ' AND s3_state = ?';

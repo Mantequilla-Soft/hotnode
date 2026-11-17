@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const DB_PATH = path.join(__dirname, '../database/hotnode.db');
-const SCHEMA_VERSION = 4; // Increment when schema changes
+const SCHEMA_VERSION = 5; // Increment when schema changes
 
 // Ensure database directory exists
 const dbDir = path.dirname(DB_PATH);
@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS pins (
     -- rather than guessing.
     owner TEXT,
     permlink TEXT,
+    -- The public address, '@owner/hive-permlink' (Mongo's embed_url). Not
+    -- the same as permlink, which on embed-video docs is an internal ID.
+    -- NULL until the video is posted to Hive - see utils/videoIdentity.js.
+    embed_url TEXT,
     -- Last time this content was actually served to a real viewer, per
     -- Mongo's view-heatmaps.updatedAt (see workers/syncLastServedWorker.js).
     -- Drives retention instead of migration status - see
